@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace rDB
+namespace rDB.Attributes
 {
     [AttributeUsage(AttributeTargets.Property)]
     public class DatabaseColumnAttribute : Attribute

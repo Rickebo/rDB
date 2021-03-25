@@ -6,25 +6,35 @@ using System.Text;
 
 namespace rDB
 {
-    public class TableSqlBuilder<T> where T : DatabaseEntry, new()
+    public class TableSqlBuilder
     {
         private bool _ifNotExists = true;
         private string _name = null;
         private TypeMap _typeMap = null;
         private Dictionary<ForeignKeyAttribute, ISet<string>> _foreignKeys = null;
         private IEnumerable<string> _options = null;
-        private readonly T _instance;
+        private readonly DatabaseEntry _instance;
+        private ColumnSet _columnSet;
 
         private static string NewLine => Environment.NewLine;
 
-        public TableSqlBuilder(TypeMap typeMap = null)
+        public TableSqlBuilder(TypeMap typeMap, ColumnSet columns, DatabaseEntry instance)
         {
-            _instance = new T();
-            _name = ReflectionExtensions.GetAttribute<DatabaseTableAttribute>(typeof(T))?.Name ?? typeof(T).Name;
+            var type = instance.GetType();
+
+            _instance = instance;
+            _name = ReflectionExtensions.GetAttribute<DatabaseTableAttribute>(type)?.Name ?? type.Name;
             _typeMap = typeMap ?? DatabaseEntry.BuildTypeMap();
+            _columnSet = columns ?? DatabaseEntry.GetColumns(type);
         }
 
-        public TableSqlBuilder<T> WithIfNotExists(bool value)
+        public static TableSqlBuilder Create<T>(TypeMap typeMap, ColumnSet columns) where T : DatabaseEntry, new() =>
+            new TableSqlBuilder(typeMap, columns, new T());
+
+        public static TableSqlBuilder Create(TypeMap typeMap, ColumnSet columns, DatabaseEntry instance) =>
+            new TableSqlBuilder(typeMap, columns, instance);
+
+        public TableSqlBuilder WithIfNotExists(bool value)
         {
             _ifNotExists = value;
             return this;
@@ -36,21 +46,27 @@ namespace rDB
         //    return this;
         //}
 
-        public TableSqlBuilder<T> WithTypeMap(TypeMap typeMap)
+        public TableSqlBuilder WithTypeMap(TypeMap typeMap)
         {
             _typeMap = typeMap;
             return this;
         }
 
-        public TableSqlBuilder<T> WithForeignKeys()
+        public TableSqlBuilder WithForeignKeys()
         {
             _foreignKeys = _instance.GetForeignKeys();
             return this;
         }
 
-        public TableSqlBuilder<T> WithForeignKeys(Dictionary<ForeignKeyAttribute, ISet<string>> foreignKeys)
+        public TableSqlBuilder WithForeignKeys(Dictionary<ForeignKeyAttribute, ISet<string>> foreignKeys)
         {
             _foreignKeys = foreignKeys;
+            return this;
+        }
+
+        public TableSqlBuilder WithColumnSet(ColumnSet set)
+        {
+            _columnSet = set;
             return this;
         }
 
@@ -107,8 +123,7 @@ namespace rDB
 
         private void BuildColumns(StringBuilder builder)
         {
-            var instance = new T();
-            var columns = instance.Columns;
+            var columns = _columnSet;
             var separator = "," + Environment.NewLine;
             var prefix = "    ";
             var anyAppended = false;

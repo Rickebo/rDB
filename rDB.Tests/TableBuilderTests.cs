@@ -20,13 +20,13 @@ namespace rDB.Tests
         {
             const string tableName = "testTable";
 
-            var typeMap = new Dictionary<Type, string>()
+            var typeMap = new TypeMap()
             {
                 { typeof(TestDatabaseType), nameof(TestDatabaseType) },
                 { typeof(TestTargetDatabaseType), nameof(TestTargetDatabaseType) }
             };
 
-            var builder = new TableSqlBuilder<TestDatabaseType>()
+            var builder = new TableSqlBuilder(typeMap, null, new TestDatabaseType())
                 .WithForeignKeys();
 
             var sql = builder.Build();
@@ -45,9 +45,6 @@ namespace rDB.Tests
             [ForeignKey(typeof(TestTargetDatabaseType), nameof(TestTargetDatabaseType.TargetId))]
             public int ReferencingId { get; set; }
 
-            public static ISet<DatabaseColumnContext> ColumnSet => GetColumns<TestDatabaseType>();
-            public override ISet<DatabaseColumnContext> Columns => ColumnSet;
-
             public override object Get(string column) => column switch
             {
                 nameof(Id) => Id,
@@ -60,9 +57,6 @@ namespace rDB.Tests
         {
             [DatabaseColumn("INT")]
             public int TargetId { get; set; }
-
-            public static ISet<DatabaseColumnContext> ColumnSet => GetColumns<TestDatabaseType>();
-            public override ISet<DatabaseColumnContext> Columns => ColumnSet;
 
             public override object Get(string column) => column switch
             {
