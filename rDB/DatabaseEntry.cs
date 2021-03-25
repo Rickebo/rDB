@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using rDB.Attributes;
 
 namespace rDB
@@ -11,7 +12,7 @@ namespace rDB
     {
         public virtual ISet<DatabaseColumnContext> Columns { get; }
 
-        internal static Dictionary<Type, string> BuildTypeMap()
+        internal static TypeMap BuildTypeMap()
         {
             var executingAssembly = Assembly.GetExecutingAssembly();
             var executingAssemblyName = executingAssembly.GetName();
@@ -27,9 +28,11 @@ namespace rDB
                         type.IsClass
                         ));
 
-            return allTypes.ToDictionary(
-                type => type, 
-                type => ReflectionExtensions.GetAttribute<DatabaseTableAttribute>(type)?.Name ?? type.Name);
+            var result = new TypeMap();
+            foreach (var type in allTypes)
+                result.Add(type, type.Name);
+
+            return result;
         }
 
         protected static ISet<DatabaseColumnContext> GetColumns<T>() where T : DatabaseEntry

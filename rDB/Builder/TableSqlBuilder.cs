@@ -10,14 +10,14 @@ namespace rDB
     {
         private bool _ifNotExists = true;
         private string _name = null;
-        private Dictionary<Type, string> _typeMap = null;
+        private TypeMap _typeMap = null;
         private Dictionary<ForeignKeyAttribute, ISet<string>> _foreignKeys = null;
         private IEnumerable<string> _options = null;
         private readonly T _instance;
 
         private static string NewLine => Environment.NewLine;
 
-        public TableSqlBuilder(Dictionary<Type, string> typeMap = null)
+        public TableSqlBuilder(TypeMap typeMap = null)
         {
             _instance = new T();
             _name = ReflectionExtensions.GetAttribute<DatabaseTableAttribute>(typeof(T))?.Name ?? typeof(T).Name;
@@ -36,9 +36,9 @@ namespace rDB
         //    return this;
         //}
 
-        public TableSqlBuilder<T> WithTypeMap(Dictionary<Type, string> dictionary)
+        public TableSqlBuilder<T> WithTypeMap(TypeMap typeMap)
         {
-            _typeMap = dictionary;
+            _typeMap = typeMap;
             return this;
         }
 
