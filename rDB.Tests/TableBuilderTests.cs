@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 
 using NUnit.Framework;
 
 using rDB.Attributes;
+using rDB.Builder;
 
 namespace rDB.Tests
 {
@@ -20,11 +22,10 @@ namespace rDB.Tests
         {
             const string tableName = "testTable";
 
-            var typeMap = new TypeMap()
-            {
-                { typeof(TestDatabaseType), nameof(TestDatabaseType) },
-                { typeof(TestTargetDatabaseType), nameof(TestTargetDatabaseType) }
-            };
+            var typeMap = new TypeMapBuilder()
+                .With<TestDatabaseType>(nameof(TestDatabaseType))
+                .With<TestTargetDatabaseType>(nameof(TestTargetDatabaseType))
+                .Build();
 
             var builder = new TableSqlBuilder(typeMap, null, new TestDatabaseType())
                 .WithForeignKeys();

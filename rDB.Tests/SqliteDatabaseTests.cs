@@ -29,19 +29,20 @@ namespace rDB.Tests
             var db = await SqliteDatabase
                 .Builder(DatabaseFile)
                 .WithTable(
-                    new SqliteTestReferencedTable(),
-                    new SqliteTestTable())
+                    new TestReferencedTable(),
+                    new TestDoubleReferencedTable(),
+                    new TestTable())
                 .Build();
 
-            await using var table = await db.Table<SqliteTestReferencedTable>();
-            var result = await table.Insert(new SqliteTestReferencedTable()
+            await using var table = await db.Table<TestReferencedTable>();
+            var result = await table.Insert(new TestReferencedTable()
             {
                 Id = id
             });
 
             Assert.Greater(result, 0);
 
-            var select = await table.SelectFirst(q => q.Where(nameof(SqliteTestReferencedTable.Id), id));
+            var select = await table.SelectFirst(q => q.Where(nameof(TestReferencedTable.Id), id));
 
             Assert.AreEqual(select.Id, id);
         }

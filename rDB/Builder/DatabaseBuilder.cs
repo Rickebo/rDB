@@ -5,6 +5,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using ColumnSet = System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>;
+using ColumnMap = System.Collections.Immutable.ImmutableDictionary<System.Type, System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
+using TypeMap = System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
+using System.Collections.Immutable;
+
 namespace rDB.Builder
 {
     public class DatabaseBuilder<T, T1> where T : Database<T1> where T1 : DbConnection
@@ -13,7 +18,7 @@ namespace rDB.Builder
         private bool _createTables = true;
         private TypeMap _typeMap;
         private Dictionary<Type, DatabaseEntry> _tableMap = new Dictionary<Type, DatabaseEntry>();
-        private readonly ColumnMap _columnMap = new ColumnMap();
+        private readonly List<KeyValuePair<Type, ColumnSet>> _tables = new List<KeyValuePair<Type, ColumnSet>>();
 
         public DatabaseBuilder(T database)
         {
@@ -47,7 +52,7 @@ namespace rDB.Builder
                     throw new InvalidOperationException("The specified table has already been added");
 
                 _tableMap.Add(type, table);
-                _columnMap.Add(type, DatabaseEntry.GetColumns(type));
+                _tables.Add(new KeyValuePair<Type, ColumnSet>(type, DatabaseEntry.GetColumns(type)));
             }
 
             return this;
@@ -72,7 +77,7 @@ namespace rDB.Builder
         {
             _typeMap ??= DatabaseEntry.BuildTypeMap();
 
-            _database.Configure(_typeMap, _columnMap);
+            _database.Configure(_typeMap, ImmutableDictionary.CreateRange(_tables));
 
             if (_createTables)
             {

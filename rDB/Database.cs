@@ -2,10 +2,15 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Data.Common;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+
+using ColumnSet = System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>;
+using ColumnMap = System.Collections.Immutable.ImmutableDictionary<System.Type, System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
+using TypeMap = System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
 
 namespace rDB
 {
@@ -51,7 +56,6 @@ namespace rDB
             var name = _typeMap[typeof(T)];
 
             return new TableConnectionContext<T, TConnection>(
-                typeof(T),
                 name,
                 columns,
                 await GetConnection().ConfigureAwait(false),
@@ -103,7 +107,12 @@ namespace rDB
         public async Task<bool> CreateTable(DatabaseEntry instance) 
         {
             var sql = TableSqlBuilder
-                .Create(_typeMap, ColumnMap.Get(instance.GetType()), instance)
+                .Create(
+                    _typeMap, 
+                    ColumnMap.TryGetValue(instance.GetType(), out var colSet) 
+                        ? colSet
+                        : null, 
+                    instance)
                 .Build();
 
             return await Execute(sql).ConfigureAwait(false) > 0;

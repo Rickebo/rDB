@@ -9,10 +9,10 @@ using System.Threading.Tasks;
 
 namespace rDB
 {
-    public class ConnectionContext<T> : IDisposable, IAsyncDisposable where T : DbConnection
+    public readonly struct ConnectionContext<T> : IDisposable, IAsyncDisposable where T : DbConnection
     {
-        public T Connection { get; }
-        public QueryFactory Factory { get; }
+        public readonly T Connection { get; }
+        public readonly QueryFactory Factory { get; }
 
         public ConnectionContext(T connection, Compiler compiler)
         {

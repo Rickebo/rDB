@@ -6,6 +6,11 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using rDB.Attributes;
 using System.Runtime.CompilerServices;
+using System.Collections.Immutable;
+
+using ColumnSet = System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>;
+using ColumnMap = System.Collections.Immutable.ImmutableDictionary<System.Type, System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
+using TypeMap = System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
 
 namespace rDB
 {
@@ -29,14 +34,14 @@ namespace rDB
                         type.IsClass
                         ));
 
-            var result = new TypeMap();
+            var resultBuilder = ImmutableDictionary.CreateBuilder<Type, string>();
             foreach (var type in allTypes)
             {
                 var attribute = ReflectionExtensions.GetAttribute<DatabaseTableAttribute>(type);
-                result.Add(type, attribute?.Name ?? type.Name);
+                resultBuilder.Add(type, attribute?.Name ?? type.Name);
             }
 
-            return result;
+            return resultBuilder.ToImmutable();
         }
 
         protected internal static ColumnSet GetColumns<T>() where T : DatabaseEntry => 
@@ -46,7 +51,7 @@ namespace rDB
         {
             var cols = ReflectionExtensions.GetAttributes<DatabaseColumnAttribute>(type);
 
-            var columns = new ColumnSet(cols
+            var columns = ImmutableHashSet.CreateRange(cols
                 .Select(col => new DatabaseColumnContext(col.Key.Name, col.Value)));
 
             return columns;

@@ -9,21 +9,13 @@ using System.Threading.Tasks;
 namespace rDB.Tests.Data
 {
     [DatabaseTable("test_table")]
-    public class SqliteTestTable : DatabaseEntry
+    public class TestTable : DatabaseEntry
     {
         [DatabaseColumn("INT", AutoIncrement = true, IsPrimaryKey = true)]
         public int TestId { get; set; }
 
         [DatabaseColumn("INT")]
-        [ForeignKey(typeof(SqliteTestReferencedTable), nameof(SqliteTestReferencedTable.Id))]
+        [ForeignKey(typeof(TestReferencedTable), nameof(TestReferencedTable.Id))]
         public int ReferencedId { get; set; }
-
-        public override object Get(string column) =>
-            column switch
-            {
-                nameof(TestId) => TestId,
-                nameof(ReferencedId) => ReferencedId,
-                _ => throw new NotImplementedException()
-            };
     }
 }

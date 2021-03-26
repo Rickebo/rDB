@@ -9,16 +9,13 @@ using System.Threading.Tasks;
 namespace rDB.Tests.Data
 {
     [DatabaseTable("referenced_table")]
-    public class SqliteTestReferencedTable : DatabaseEntry
+    public class TestReferencedTable : DatabaseEntry
     {
         [DatabaseColumn("INT", AutoIncrement = true, IsPrimaryKey = true)]
         public int Id { get; set; }
 
-        public override object Get(string column) =>
-            column switch
-            {
-                nameof(Id) => Id,
-                _ => throw new NotImplementedException()
-            };
+        [DatabaseColumn("INT")]
+        [ForeignKey(typeof(TestDoubleReferencedTable), nameof(TestDoubleReferencedTable.DoubleReferencedId))]
+        public int DoubleReferencedId { get; set; }
     }
 }

@@ -28,14 +28,29 @@ namespace rDB
         /// so that entries that have no dependencies are returned first
         /// </summary>
         /// <returns></returns>
-        public IEnumerable<T> Solve()
-        {
-            var clone = new DependencyGraph<T>(_tree);
+        public IEnumerable<T> Solve() => 
+            new DependencyGraph<T>(_tree).SolveDestructive();
 
-            while (clone.Find(out var value))
+        /// <summary>
+        /// Iterates over the entries in the dependency graph. The iteration is done in order,
+        /// so that entries that have no dependencies are returned first
+        /// 
+        /// The graph will no longer be empty after this method has finished executing.
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<T> SolveDestructive()
+        {
+            try
             {
-                clone.Remove(value);
-                yield return value;
+                while (Find(out var value))
+                {
+                    Remove(value);
+                    yield return value;
+                }
+            }
+            finally
+            {
+                _tree?.Clear();
             }
         }
 
