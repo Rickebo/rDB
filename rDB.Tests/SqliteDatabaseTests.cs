@@ -57,20 +57,14 @@ namespace rDB.Tests
                     new TestTable())
                 .Build();
         }
-            
+
 
         [Test]
         public async Task TestSqlBuilder()
         {
-            try
-            {
-                var db = await CreateDatabase();
-                
-                Assert.Zero(db.OpenConnections);
-            } catch
-            {
-                Assert.Fail("An exception occurred.");
-            }
+            var db = await CreateDatabase();
+
+            Assert.Zero(db.OpenConnections);
         }
 
         [Test]
@@ -78,22 +72,19 @@ namespace rDB.Tests
         {
             const int id = 111;
 
-            try
-            {
-                var db = await CreateDatabase();
+            var db = await CreateDatabase();
 
-                await using var table = await db.Table<TestReferencedTable>();
+            await using (var table = await db.Table<TestReferencedTable>())
+            {
                 var result = await table.Insert(new TestReferencedTable()
                 {
                     Id = id
                 });
 
                 Assert.Greater(result, 0);
-                Assert.Zero(db.OpenConnections);
-            } catch
-            {
-                Assert.Fail();
             }
+
+            Assert.Zero(db.OpenConnections);
         }
 
         [Test]
@@ -101,11 +92,10 @@ namespace rDB.Tests
         {
             const int id = 111;
 
-            try
-            {
-                var db = await CreateDatabase();
+            var db = await CreateDatabase();
 
-                await using var table = await db.Table<TestReferencedTable>();
+            await using (var table = await db.Table<TestReferencedTable>())
+            {
                 var result = await table.Insert(new TestReferencedTable()
                 {
                     Id = id
@@ -113,45 +103,39 @@ namespace rDB.Tests
 
                 Assert.Greater(result, 0);
 
-                var select = await table.SelectFirst(q => q.Where(nameof(TestReferencedTable.Id), id));
+                var select = await table.SelectFirst(q => q
+                    .Where(nameof(TestReferencedTable.Id), id));
 
                 Assert.AreEqual(select.Id, id);
-                Assert.Zero(db.OpenConnections);
-            } catch
-            {
-                Assert.Fail();
             }
+
+            Assert.Zero(db.OpenConnections);
         }
 
-        
+
         [Test]
         public async Task TestInsertionSelection2()
         {
             const int id = 111;
 
-            try
-            {
-                var db = await CreateDatabase();
+            var db = await CreateDatabase();
 
-                await using (var table = await db.Table<TestReferencedTable>())
+            await using (var table = await db.Table<TestReferencedTable>())
+            {
+                var result = await table.Insert(new TestReferencedTable()
                 {
-                    var result = await table.Insert(new TestReferencedTable()
-                    {
-                        Id = id
-                    });
+                    Id = id
+                });
 
-                    Assert.Greater(result, 0);
-                }
-
-                var selection = await db.Select<TestReferencedTable, int>(query => query
-                    .FirstAsync<int>());
-
-                Assert.AreEqual(id, selection);
-                Assert.Zero(db.OpenConnections);
-            } catch
-            {
-                Assert.Fail("An exception occurred.");
+                Assert.Greater(result, 0);
             }
+
+            var selection = await db.Select<TestReferencedTable, int>(query => query
+                .Select(nameof(TestReferencedTable.Id))
+                .FirstAsync<int>());
+
+            Assert.AreEqual(id, selection);
+            Assert.Zero(db.OpenConnections);
         }
     }
 }

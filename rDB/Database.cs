@@ -27,14 +27,14 @@ namespace rDB
         public ICollection<TConnection> Connections => _connections.Keys;
 
 
-        private TypeMap _typeMap;
-        private ColumnMap ColumnMap { get; set; }
+        protected TypeMap TypeMap { get; private set; }
+        protected ColumnMap ColumnMap { get; private set; }
 
-        private Compiler _compiler;
+        protected Compiler SqlCompiler { get; private set; }
 
         protected Database(Compiler compiler)
         {
-            _compiler = compiler;
+            SqlCompiler = compiler;
         }
 
         protected Database()
@@ -47,7 +47,7 @@ namespace rDB
             if (!_isConfigured.Set(true))
                 throw new InvalidOperationException("Cannot configure already configured database.");
 
-            _typeMap = typeMap;
+            TypeMap = typeMap;
             ColumnMap = tableColumnMap;
         }
 
@@ -55,13 +55,13 @@ namespace rDB
 
         public async Task<ConnectionContext<TConnection>> GetConnectionContext()
         {
-            var context = new ConnectionContext<TConnection>(
-                await GetConnection().ConfigureAwait(false), 
-                _compiler,
-                (connection, isAsync) => {
-                    _connections.TryRemove(connection, out _);
-                    Interlocked.Decrement(ref _openConnections);
-                });
+            var context = await CreateConnectionContext();
+            
+            context.OnDispose += (s, a) =>
+            {
+                _connections.TryRemove(a.Context.Connection, out _);
+                Interlocked.Decrement(ref _openConnections);
+            };
 
             _connections.TryAdd(context.Connection, null);
             Interlocked.Increment(ref _openConnections);
@@ -69,13 +69,16 @@ namespace rDB
             return context;
         }
         
+        protected virtual async Task<ConnectionContext<TConnection>> CreateConnectionContext() =>
+            new ConnectionContext<TConnection>(await GetConnection().ConfigureAwait(false), SqlCompiler);
+
         public async Task<TableConnectionContext<T, TConnection>> Table<T>() where T : DatabaseEntry
         {
             if (!ColumnMap.TryGetValue(typeof(T), out var columns))
                 throw new InvalidOperationException("Cannot access table which is not a part of this database.");
 
             var connectionContext = await GetConnectionContext();
-            var name = _typeMap[typeof(T)];
+            var name = TypeMap[typeof(T)];
 
             return new TableConnectionContext<T, TConnection>(
                 name,
@@ -112,7 +115,7 @@ namespace rDB
 
                 sqlParameter.ParameterName = parameter.Name;
                 sqlParameter.Value = parameter is Type type
-                    ? _typeMap[type]
+                    ? TypeMap[type]
                     : parameter.Value;
 
                 command.Parameters.Add(sqlParameter);
@@ -130,7 +133,7 @@ namespace rDB
         {
             var sql = TableSqlBuilder
                 .Create(
-                    _typeMap, 
+                    TypeMap, 
                     ColumnMap.TryGetValue(instance.GetType(), out var colSet) 
                         ? colSet
                         : null, 

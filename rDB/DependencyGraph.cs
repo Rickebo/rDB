@@ -71,7 +71,8 @@ namespace rDB
                 return true;
             }
 
-            throw new Exception("Could not find solution to dependencies.");
+            throw new Exception("Could not find solution to dependencies. Verify that there are no circular dependencies and that " +
+                "there are no dependencies that are not included.");
         }
 
         private void Remove(T entry)

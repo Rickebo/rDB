@@ -9,37 +9,48 @@ using System.Threading.Tasks;
 
 namespace rDB
 {
-    public readonly struct ConnectionContext<T> : IDisposable, IAsyncDisposable where T : DbConnection
+    public class ConnectionContext<TConnection> : IDisposable, IAsyncDisposable 
+        where TConnection : DbConnection
     {
-        public readonly T Connection { get; }
-        public readonly QueryFactory Factory { get; }
+        public TConnection Connection { get; }
+        public QueryFactory Factory { get; }
 
-        private readonly Action<T, bool> _disposeCallback;
+        public EventHandler<ConnectionContextDisposeEventArgs> OnDispose { get; set; }
 
-        public ConnectionContext(T connection, Compiler compiler, Action<T, bool> disposeCallback)
+        public ConnectionContext(TConnection connection, Compiler compiler)
         {
             Connection = connection;
             Factory = compiler != null 
                 ? new QueryFactory(connection, compiler)
                 : null;
-
-            _disposeCallback = disposeCallback;
         }
 
         public void Dispose()
         {
             Factory?.Dispose();
             Connection.Dispose();
-
-            _disposeCallback?.Invoke(Connection, false);
+            
+            OnDispose?.Invoke(this, new ConnectionContextDisposeEventArgs(this, false));
         }
 
         public async ValueTask DisposeAsync()
         {
             Factory?.Dispose();
             await Connection.DisposeAsync();
-            
-            _disposeCallback?.Invoke(Connection, true);
+
+            OnDispose?.Invoke(this, new ConnectionContextDisposeEventArgs(this, true));
+        }
+
+        public readonly struct ConnectionContextDisposeEventArgs
+        {
+            public readonly ConnectionContext<TConnection> Context { get; }
+            public readonly bool IsAsynchronous { get; }
+
+            public ConnectionContextDisposeEventArgs(ConnectionContext<TConnection> context, bool isAsync) 
+            {
+                Context = context;
+                IsAsynchronous = isAsync;
+            }
         }
     }
 }
