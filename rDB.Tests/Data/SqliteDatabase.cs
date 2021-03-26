@@ -24,7 +24,7 @@ namespace rDB.Tests
         public static DatabaseBuilder<SqliteDatabase, SqliteConnection> Builder(string path) => 
             new DatabaseBuilder<SqliteDatabase, SqliteConnection>(new SqliteDatabase(path));
 
-        public override async Task<SqliteConnection> GetConnection()
+        protected override async Task<SqliteConnection> GetConnection()
         {
             var connection = new SqliteConnection($"Data Source={_path}");
             await connection.OpenAsync();

@@ -24,9 +24,9 @@ namespace rDB
         public readonly ColumnSet Columns { get; }
 
         public TableConnectionContext(string tableName, ColumnSet tableColumns, 
-            TConnection connection, Compiler compiler)
+            ConnectionContext<TConnection> connectionContext)
         {
-            ConnectionContext = new ConnectionContext<TConnection>(connection, compiler);
+            ConnectionContext = connectionContext;
             TableName = tableName;
             Columns = tableColumns;
         }

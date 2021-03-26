@@ -11,12 +11,22 @@ using System.Threading.Tasks;
 using ColumnSet = System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>;
 using ColumnMap = System.Collections.Immutable.ImmutableDictionary<System.Type, System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
 using TypeMap = System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
+using SqlKata;
+using System.Collections.Concurrent;
 
 namespace rDB
 {
     public abstract class Database<TConnection> where TConnection : DbConnection
     {
         private AtomicBoolean _isConfigured = new AtomicBoolean(false);
+
+        private volatile int _openConnections = 0;
+        public int OpenConnections => _openConnections;
+
+        private ConcurrentDictionary<TConnection, object> _connections { get; } = new ConcurrentDictionary<TConnection, object>();
+        public ICollection<TConnection> Connections => _connections.Keys;
+
+
         private TypeMap _typeMap;
         private ColumnMap ColumnMap { get; set; }
 
@@ -41,34 +51,46 @@ namespace rDB
             ColumnMap = tableColumnMap;
         }
 
-        public abstract Task<TConnection> GetConnection();
+        protected abstract Task<TConnection> GetConnection();
 
-        public async Task<ConnectionContext<TConnection>> GetConnectionContext() =>
-            new ConnectionContext<TConnection>(
+        public async Task<ConnectionContext<TConnection>> GetConnectionContext()
+        {
+            var context = new ConnectionContext<TConnection>(
                 await GetConnection().ConfigureAwait(false), 
-                _compiler);
+                _compiler,
+                (connection, isAsync) => {
+                    _connections.TryRemove(connection, out _);
+                    Interlocked.Decrement(ref _openConnections);
+                });
 
+            _connections.TryAdd(context.Connection, null);
+            Interlocked.Increment(ref _openConnections);
+
+            return context;
+        }
+        
         public async Task<TableConnectionContext<T, TConnection>> Table<T>() where T : DatabaseEntry
         {
             if (!ColumnMap.TryGetValue(typeof(T), out var columns))
                 throw new InvalidOperationException("Cannot access table which is not a part of this database.");
 
+            var connectionContext = await GetConnectionContext();
             var name = _typeMap[typeof(T)];
 
             return new TableConnectionContext<T, TConnection>(
                 name,
                 columns,
-                await GetConnection().ConfigureAwait(false),
-                _compiler
+                connectionContext
             );
         }
 
-        public async Task<TResult> Select<T, TResult>(Func<TableConnectionContext<T, TConnection>, Task<TResult>> selector) 
-            where T : DatabaseEntry
+        public async Task<TResult> Select<TTable, TResult>(Func<Query, Task<TResult>> selector) 
+            where TTable : DatabaseEntry
         {
-            await using var context = await Table<T>();
+            await using var context = await Table<TTable>();
+            var query = context.Query();
 
-            return await selector(context);
+            return await selector(query);
         }
 
         public async Task<bool> DropTable<T>() where T : DatabaseEntry =>

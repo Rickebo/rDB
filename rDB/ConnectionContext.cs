@@ -14,24 +14,32 @@ namespace rDB
         public readonly T Connection { get; }
         public readonly QueryFactory Factory { get; }
 
-        public ConnectionContext(T connection, Compiler compiler)
+        private readonly Action<T, bool> _disposeCallback;
+
+        public ConnectionContext(T connection, Compiler compiler, Action<T, bool> disposeCallback)
         {
             Connection = connection;
             Factory = compiler != null 
                 ? new QueryFactory(connection, compiler)
                 : null;
+
+            _disposeCallback = disposeCallback;
         }
 
         public void Dispose()
         {
             Factory?.Dispose();
             Connection.Dispose();
+
+            _disposeCallback?.Invoke(Connection, false);
         }
 
         public async ValueTask DisposeAsync()
         {
             Factory?.Dispose();
             await Connection.DisposeAsync();
+            
+            _disposeCallback?.Invoke(Connection, true);
         }
     }
 }
