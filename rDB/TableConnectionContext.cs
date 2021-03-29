@@ -12,23 +12,30 @@ using System.Threading.Tasks;
 using ColumnSet = System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>;
 using ColumnMap = System.Collections.Immutable.ImmutableDictionary<System.Type, System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
 using TypeMap = System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
+using System.Collections.Immutable;
 
 namespace rDB
 {
-    public struct TableConnectionContext<TTable, TConnection> : IDisposable, IAsyncDisposable
-        where TConnection : DbConnection 
+    public class TableConnectionContext<TTable, TConnection> : BaseConnectionContext<TConnection>, IDisposable, IAsyncDisposable
+        where TConnection : DbConnection
         where TTable : DatabaseEntry
     {
-        private readonly ConnectionContext<TConnection> ConnectionContext { get; }
-        public readonly string TableName { get; }
-        public readonly ColumnSet Columns { get; }
+        private BaseConnectionContext<TConnection> ConnectionContext { get; }
+        public string TableName { get; }
+        public IImmutableSet<DatabaseColumnContext> Columns { get; }
 
-        public TableConnectionContext(string tableName, ColumnSet tableColumns, 
-            ConnectionContext<TConnection> connectionContext)
+        public override SchemaContext Schema => ConnectionContext.Schema;
+
+        public override TConnection Connection => ConnectionContext.Connection;
+
+        public override QueryFactory Factory => ConnectionContext.Factory;
+
+        public TableConnectionContext(BaseConnectionContext<TConnection> connectionContext)
         {
             ConnectionContext = connectionContext;
-            TableName = tableName;
-            Columns = tableColumns;
+
+            TableName = connectionContext.Schema.TableName<TTable>();
+            Columns = connectionContext.Schema.ColumnMap[typeof(TTable)];
         }
 
         public async Task<int> Insert(TTable entry, Predicate<DatabaseColumnContext> columnSelector = null)
@@ -57,26 +64,20 @@ namespace rDB
                 .ConfigureAwait(false);
         }
 
-        public Query Query() => 
-            ConnectionContext.Factory.Query(TableName);
-
-        public async Task<T2> Query<T2>(Func<Query, Task<T2>> selector)
-        {
-            var query = ConnectionContext.Factory.Query(TableName);
-            return await selector(query);
-        }
-
+        #region Select
         public async Task<TTable> SelectFirst(Func<Query, Query> processor) =>
-            await processor(Query()).FirstAsync<TTable>()
+            await SelectFirst<TTable, TTable>(processor)
                 .ConfigureAwait(false);
 
         public async Task<TTable> SelectFirstOrDefault(Func<Query, Query> processor) =>
-            await processor(Query()).FirstOrDefaultAsync<TTable>()
+            await SelectFirstOrDefault<TTable, TTable>(processor)
                 .ConfigureAwait(false);
 
         public async Task<IEnumerable<TTable>> Select(Func<Query, Query> processor) =>
-            await processor(Query()).GetAsync<TTable>()
+            await Select<TTable, TTable>(processor)
                 .ConfigureAwait(false);
+
+        #endregion
 
         public void Dispose() => ConnectionContext.Dispose();
         public async ValueTask DisposeAsync() => await ConnectionContext.DisposeAsync();

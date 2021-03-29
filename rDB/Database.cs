@@ -8,15 +8,17 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-using ColumnSet = System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>;
-using ColumnMap = System.Collections.Immutable.ImmutableDictionary<System.Type, System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
-using TypeMap = System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
 using SqlKata;
 using System.Collections.Concurrent;
 
+using ColumnSet = System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>;
+using ColumnMap = System.Collections.Immutable.IImmutableDictionary<System.Type, System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>>;
+using TypeMap = System.Collections.Immutable.IImmutableDictionary<System.Type, string>;
+
 namespace rDB
 {
-    public abstract class Database<TConnection> where TConnection : DbConnection
+    public abstract class Database<TConnection> 
+        where TConnection : DbConnection
     {
         private AtomicBoolean _isConfigured = new AtomicBoolean(false);
 
@@ -26,9 +28,7 @@ namespace rDB
         private ConcurrentDictionary<TConnection, object> _connections { get; } = new ConcurrentDictionary<TConnection, object>();
         public ICollection<TConnection> Connections => _connections.Keys;
 
-
-        protected TypeMap TypeMap { get; private set; }
-        protected ColumnMap ColumnMap { get; private set; }
+        protected SchemaContext Schema { get; private set; }
 
         protected Compiler SqlCompiler { get; private set; }
 
@@ -37,25 +37,25 @@ namespace rDB
             SqlCompiler = compiler;
         }
 
-        protected Database()
-        {
-
-        }
-
         public void Configure(TypeMap typeMap, ColumnMap tableColumnMap)
         {
             if (!_isConfigured.Set(true))
                 throw new InvalidOperationException("Cannot configure already configured database.");
 
-            TypeMap = typeMap;
-            ColumnMap = tableColumnMap;
+            Schema = new SchemaContext(tableColumnMap, typeMap);
         }
 
         protected abstract Task<TConnection> GetConnection();
 
-        public async Task<ConnectionContext<TConnection>> GetConnectionContext()
+        public virtual async Task<ConnectionContext<TConnection>> GetConnectionContext() =>
+            await GetConnectionContext(() => CreateConnectionContext())
+            .ConfigureAwait(false);
+
+        public virtual async Task<TContext> GetConnectionContext<TContext>(Func<Task<TContext>> contextConstructor)
+            where TContext : ConnectionContext<TConnection>
         {
-            var context = await CreateConnectionContext();
+            var context = await contextConstructor()
+                .ConfigureAwait(false);
             
             context.OnDispose += (s, a) =>
             {
@@ -68,37 +68,50 @@ namespace rDB
 
             return context;
         }
-        
-        protected virtual async Task<ConnectionContext<TConnection>> CreateConnectionContext() =>
-            new ConnectionContext<TConnection>(await GetConnection().ConfigureAwait(false), SqlCompiler);
 
-        public async Task<TableConnectionContext<T, TConnection>> Table<T>() where T : DatabaseEntry
-        {
-            if (!ColumnMap.TryGetValue(typeof(T), out var columns))
-                throw new InvalidOperationException("Cannot access table which is not a part of this database.");
+        public string TableName<TTable>() where TTable : DatabaseEntry =>
+            Schema.TableName<TTable>();
 
-            var connectionContext = await GetConnectionContext();
-            var name = TypeMap[typeof(T)];
+        private async Task<ConnectionContext<TConnection>> CreateConnectionContext() =>
+            new ConnectionContext<TConnection>(await GetConnection().ConfigureAwait(false), SqlCompiler, Schema);
 
-            return new TableConnectionContext<T, TConnection>(
-                name,
-                columns,
-                connectionContext
-            );
-        }
+        protected virtual async Task<TContext> Table<TContext, TTable>(Func<ConnectionContext<TConnection>, TContext> constructor)
+           where TContext : TableConnectionContext<TTable, TConnection>
+           where TTable : DatabaseEntry =>
+            constructor(await GetConnectionContext().ConfigureAwait(false));
+
+
+        public virtual async Task<TableConnectionContext<TTable, TConnection>> Table<TTable>()
+            where TTable : DatabaseEntry =>
+            await Table<TableConnectionContext<TTable, TConnection>, TTable>(context =>
+                new TableConnectionContext<TTable, TConnection>(context))
+                .ConfigureAwait(false);
+
 
         public async Task<TResult> Select<TTable, TResult>(Func<Query, Task<TResult>> selector) 
             where TTable : DatabaseEntry
         {
             await using var context = await Table<TTable>();
-            var query = context.Query();
+            var query = context.Query<TTable>();
 
             return await selector(query);
         }
 
         public async Task<bool> DropTable<T>() where T : DatabaseEntry =>
-            await Execute("DROP TABLE IF EXISTS @1", new Parameter("1", typeof(T)))
+            await DropTable(typeof(T));
+        
+        public async Task<bool> DropTable(Type type) =>
+            await Execute("DROP TABLE IF EXISTS @1", new Parameter("1", type))
                 .ConfigureAwait(false) > 0;
+
+        public async Task<int> DropTables()
+        {
+            var sum = 0;
+            foreach (var type in Schema.ColumnMap.Keys)
+                sum += await DropTable(type).ConfigureAwait(false) ? 1 : 0;
+
+            return sum;
+        }
 
         public async Task<int> Execute(string sql, params Parameter[] parameters)
         {
@@ -115,7 +128,7 @@ namespace rDB
 
                 sqlParameter.ParameterName = parameter.Name;
                 sqlParameter.Value = parameter is Type type
-                    ? TypeMap[type]
+                    ? Schema.TypeMap[type]
                     : parameter.Value;
 
                 command.Parameters.Add(sqlParameter);
@@ -133,8 +146,8 @@ namespace rDB
         {
             var sql = TableSqlBuilder
                 .Create(
-                    TypeMap, 
-                    ColumnMap.TryGetValue(instance.GetType(), out var colSet) 
+                    Schema.TypeMap, 
+                    Schema.ColumnMap.TryGetValue(instance.GetType(), out var colSet) 
                         ? colSet
                         : null, 
                     instance)

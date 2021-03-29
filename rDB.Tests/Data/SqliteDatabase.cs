@@ -32,14 +32,18 @@ namespace rDB.Tests
             return connection;
         }
 
-        protected override async Task<ConnectionContext<SqliteConnection>> CreateConnectionContext() => 
+        public new async Task<SqliteConnectionContext> GetConnectionContext() =>
+            await base.GetConnectionContext(() => CreateConnectionContext());
+
+        protected async Task<SqliteConnectionContext> CreateConnectionContext() => 
             new SqliteConnectionContext(
                 await GetConnection().ConfigureAwait(false), 
-                SqlCompiler);
+                SqlCompiler,
+                Schema);
 
         public class SqliteConnectionContext : ConnectionContext<SqliteConnection>
         {
-            public SqliteConnectionContext(SqliteConnection connection, Compiler compiler) : base(connection, compiler)
+            public SqliteConnectionContext(SqliteConnection connection, Compiler compiler, SchemaContext schema) : base(connection, compiler, schema)
             {
 
             }
