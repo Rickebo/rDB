@@ -16,15 +16,15 @@ namespace rDB.Builder
         where TDatabase : Database<TConnection> 
         where TConnection : DbConnection
     {
-        private TDatabase _database;
-        private bool _createTables = true;
-        private TypeMap _typeMap;
-        private Dictionary<Type, DatabaseEntry> _tableMap = new Dictionary<Type, DatabaseEntry>();
-        private readonly List<KeyValuePair<Type, ColumnSet>> _tables = new List<KeyValuePair<Type, ColumnSet>>();
+        protected TDatabase Database;
+        protected bool CreateTables = true;
+        protected TypeMap TypeMap;
+        protected Dictionary<Type, DatabaseEntry> TableMap = new Dictionary<Type, DatabaseEntry>();
+        protected readonly List<KeyValuePair<Type, ColumnSet>> _tables = new List<KeyValuePair<Type, ColumnSet>>();
 
         public DatabaseBuilder(TDatabase database)
         {
-            _database = database;
+            Database = database;
         }
 
         public DatabaseBuilder()
@@ -34,19 +34,19 @@ namespace rDB.Builder
 
         public DatabaseBuilder<TDatabase, TConnection> WithDatabase(TDatabase database)
         {
-            _database = database;
+            Database = database;
             return this;
         }
 
-        public DatabaseBuilder<TDatabase, TConnection> CreateTables(bool state)
+        public DatabaseBuilder<TDatabase, TConnection> WithCreateTables(bool state)
         {
-            _createTables = state;
+            CreateTables = state;
             return this;
         }
 
         public DatabaseBuilder<TDatabase, TConnection> WithTypeMap(TypeMap map)
         {
-            _typeMap = map;
+            TypeMap = map;
             return this;
         }
 
@@ -61,10 +61,10 @@ namespace rDB.Builder
             foreach (var table in tables)
             {
                 var type = table.GetType();
-                if (_tableMap.ContainsKey(type))
+                if (TableMap.ContainsKey(type))
                     throw new InvalidOperationException("The specified table has already been added");
 
-                _tableMap.Add(type, table);
+                TableMap.Add(type, table);
                 _tables.Add(new KeyValuePair<Type, IImmutableSet<DatabaseColumnContext>>(type, (IImmutableSet<DatabaseColumnContext>) DatabaseEntry.GetColumns(type)));
             }
 
@@ -74,7 +74,7 @@ namespace rDB.Builder
         private IEnumerable<DatabaseEntry> GetTablesInCreationOrder()
         {
             var graph = new DependencyGraph<Type>();
-            foreach (var entry in _tableMap)
+            foreach (var entry in TableMap)
             {
                 var dependencies = entry.Value.GetForeignKeys()
                     .Select(entry => entry.Key.Table);
@@ -83,22 +83,22 @@ namespace rDB.Builder
             }
 
             foreach (var entry in graph.Solve())
-                yield return _tableMap[entry];
+                yield return TableMap[entry];
         }
 
-        public async Task<TDatabase> Build()
+        public virtual async Task<TDatabase> Build()
         {
-            _typeMap ??= DatabaseEntry.BuildTypeMap();
+            TypeMap ??= DatabaseEntry.BuildTypeMap();
 
-            _database.Configure(_typeMap, ImmutableDictionary.CreateRange(_tables));
+            Database.Configure(TypeMap, ImmutableDictionary.CreateRange(_tables));
 
-            if (_createTables)
+            if (CreateTables)
             {
                 var tables = GetTablesInCreationOrder().ToArray();
-                await _database.CreateTables(tables);
+                await Database.CreateTables(tables);
             }
 
-            return _database;
+            return Database;
         }
     }
 }

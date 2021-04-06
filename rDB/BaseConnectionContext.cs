@@ -34,7 +34,7 @@ namespace rDB
                 .FirstOrDefaultAsync<TTable>()
                 .ConfigureAwait(false);
 
-            if (!result.Equals(default(TTable)))
+            if (result != null)
                 return result;
 
             await Insert(itemCreator())
@@ -67,7 +67,7 @@ namespace rDB
                 var parameter = command.CreateParameter();
 
                 parameter.ParameterName = name;
-                parameter.Value = value;
+                parameter.Value = value ?? DBNull.Value;
 
                 command.Parameters.Add(parameter);
             });

@@ -23,7 +23,10 @@ namespace rDB
         }
 
         public string TableName<TTable>() where TTable : DatabaseEntry =>
-            TypeMap[typeof(TTable)];
+            TableName(typeof(TTable));
+
+        public string TableName(Type type) =>
+            TypeMap[type];
 
         public IImmutableSet<DatabaseColumnContext> Columns<TTable>()
             where TTable : DatabaseEntry =>

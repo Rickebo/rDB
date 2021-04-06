@@ -14,6 +14,7 @@ using System.Collections.Concurrent;
 using ColumnSet = System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>;
 using ColumnMap = System.Collections.Immutable.IImmutableDictionary<System.Type, System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>>;
 using TypeMap = System.Collections.Immutable.IImmutableDictionary<System.Type, string>;
+using Humanizer;
 
 namespace rDB
 {
@@ -72,6 +73,8 @@ namespace rDB
         public string TableName<TTable>() where TTable : DatabaseEntry =>
             Schema.TableName<TTable>();
 
+        public string TableName(Type type) => Schema.TableName(type);
+
         private async Task<ConnectionContext<TConnection>> CreateConnectionContext() =>
             new ConnectionContext<TConnection>(await GetConnection().ConfigureAwait(false), SqlCompiler, Schema);
 
@@ -101,7 +104,7 @@ namespace rDB
             await DropTable(typeof(T));
         
         public async Task<bool> DropTable(Type type) =>
-            await Execute("DROP TABLE IF EXISTS @1", new Parameter("1", type))
+            await Execute($"DROP TABLE IF EXISTS {TableName(type)}")
                 .ConfigureAwait(false) > 0;
 
         public async Task<int> DropTables()
@@ -128,7 +131,7 @@ namespace rDB
 
                 sqlParameter.ParameterName = parameter.Name;
                 sqlParameter.Value = parameter is Type type
-                    ? Schema.TypeMap[type]
+                    ? Schema.TableName(type)
                     : parameter.Value;
 
                 command.Parameters.Add(sqlParameter);
