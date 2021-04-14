@@ -17,9 +17,11 @@ namespace rDB
             Column = column;
         }
 
-        public string GenerateSql()
+        public string GenerateSql(bool quoteColumnName = true)
         {
-            var sql = $"\"{Name}\" {Column.Type}";
+            var sql = quoteColumnName 
+                ? $"\"{Name}\" {Column.Type}"
+                : $"{Name} {Column.Type}";
 
             if (Column.NotNull)
                 sql += " NOT NULL";

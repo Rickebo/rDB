@@ -19,10 +19,11 @@ namespace rDB
         private IEnumerable<string> _options = null;
         private readonly DatabaseEntry _instance;
         private ColumnSet _columnSet;
+        private bool _quoteColumnName;
 
         private static string NewLine => Environment.NewLine;
 
-        public TableSqlBuilder(TypeMap typeMap, ColumnSet columns, DatabaseEntry instance)
+        public TableSqlBuilder(TypeMap typeMap, ColumnSet columns, DatabaseEntry instance, bool quoteColumnNames = true)
         {
             var type = instance.GetType();
 
@@ -30,13 +31,14 @@ namespace rDB
             _name = ReflectionExtensions.GetAttribute<DatabaseTableAttribute>(type)?.Name ?? type.Name;
             _typeMap = typeMap ?? DatabaseEntry.BuildTypeMap();
             _columnSet = columns ?? DatabaseEntry.GetColumns(type);
+            _quoteColumnName = quoteColumnNames;
         }
 
-        public static TableSqlBuilder Create<T>(TypeMap typeMap, ColumnSet columns) where T : DatabaseEntry, new() =>
-            new TableSqlBuilder(typeMap, columns, new T());
+        public static TableSqlBuilder Create<T>(TypeMap typeMap, ColumnSet columns, bool quoteColumnNames = true) where T : DatabaseEntry, new() =>
+            new TableSqlBuilder(typeMap, columns, new T(), quoteColumnNames: quoteColumnNames);
 
-        public static TableSqlBuilder Create(TypeMap typeMap, ColumnSet columns, DatabaseEntry instance) =>
-            new TableSqlBuilder(typeMap, columns, instance);
+        public static TableSqlBuilder Create(TypeMap typeMap, ColumnSet columns, DatabaseEntry instance, bool quoteColumnNames = true) =>
+            new TableSqlBuilder(typeMap, columns, instance, quoteColumnNames: quoteColumnNames);
 
         public TableSqlBuilder WithIfNotExists(bool value)
         {
@@ -143,7 +145,7 @@ namespace rDB
             }
 
             foreach (var column in columns)
-                appendItem(column.GenerateSql());
+                appendItem(column.GenerateSql(quoteColumnName: _quoteColumnName));
 
             if (anyAppended)
                 builder.Length = builder.Length - separator.Length;

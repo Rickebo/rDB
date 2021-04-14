@@ -33,6 +33,8 @@ namespace rDB
 
         protected Compiler SqlCompiler { get; private set; }
 
+        protected bool QuoteColumnNames { get; set; } = true;
+
         protected Database(Compiler compiler)
         {
             SqlCompiler = compiler;
@@ -153,7 +155,8 @@ namespace rDB
                     Schema.ColumnMap.TryGetValue(instance.GetType(), out var colSet) 
                         ? colSet
                         : null, 
-                    instance)
+                    instance,
+                    quoteColumnNames: QuoteColumnNames)
                 .Build();
 
             return await Execute(sql).ConfigureAwait(false) > 0;
