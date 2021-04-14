@@ -7,6 +7,7 @@ using System.Text;
 using ColumnSet = System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>;
 using ColumnMap = System.Collections.Immutable.IImmutableDictionary<System.Type, System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>>;
 using TypeMap = System.Collections.Immutable.IImmutableDictionary<System.Type, string>;
+using System.Linq;
 
 namespace rDB
 {
@@ -98,6 +99,20 @@ namespace rDB
             }
         }
 
+        private void BuildPrimaryKey(Action<string> callback)
+        {
+            var primaryKeys = _columnSet
+                .Where(column => column.Column.IsPrimaryKey)
+                .Select(column => column.Name)
+                .Distinct()
+                .ToArray();
+
+            if (primaryKeys == null || primaryKeys.Length < 1)
+                return;
+
+            callback($"PRIMARY KEY ({string.Join(", ", primaryKeys)})");
+        }
+
         private void BuildOptions(Action<string> callback)
         {
             if (_options == null)
@@ -149,6 +164,10 @@ namespace rDB
 
             if (anyAppended)
                 builder.Length = builder.Length - separator.Length;
+
+            BuildPrimaryKey(sql => builder
+                .Append(separator)
+                .Append(sql));
 
             builder.Append(Environment.NewLine + ")" + Environment.NewLine);
         }
