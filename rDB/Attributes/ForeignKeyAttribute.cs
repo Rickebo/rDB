@@ -20,7 +20,7 @@ namespace rDB.Attributes
         public ForeignKeyAttribute([NotNull] Type table, [NotNull] params string[] columns)
         {
             if (columns == null || columns.Length < 1)
-                throw new ArgumentException("Cnanot create foreign key referencing invalid or no columns.", nameof(columns));
+                throw new ArgumentException("Cannot create foreign key referencing invalid or no columns.", nameof(columns));
 
             Table = table;
             Columns = columns;

@@ -38,6 +38,12 @@ namespace rDB
             Columns = connectionContext.Schema.ColumnMap[typeof(TTable)];
         }
 
+        public Query Query() => Query<TTable>(); 
+
+        public async Task SelectOrInsert(Func<Query, Query> reader, Func<TTable> itemCreator) =>
+            await SelectOrInsert(reader, itemCreator)
+                .ConfigureAwait(false);
+
         public async Task<int> Insert(TTable entry, Predicate<DatabaseColumnContext> columnSelector = null)
         {
             var command = ConnectionContext.Connection.CreateCommand();

@@ -17,6 +17,7 @@ namespace rDB
         private string _name = null;
         private TypeMap _typeMap = null;
         private Dictionary<ForeignKeyAttribute, ISet<string>> _foreignKeys = null;
+        private Dictionary<IndexAttribute, ISet<string>> _indices = null;
         private IEnumerable<string> _options = null;
         private readonly DatabaseEntry _instance;
         private ColumnSet _columnSet;
@@ -62,6 +63,12 @@ namespace rDB
         public TableSqlBuilder WithForeignKeys()
         {
             _foreignKeys = _instance.GetForeignKeys();
+            return this;
+        }
+
+        public TableSqlBuilder WithIndices()
+        {
+            _indices = _instance.GetIndices();
             return this;
         }
 
@@ -111,6 +118,24 @@ namespace rDB
                 return;
 
             callback($"PRIMARY KEY ({string.Join(", ", primaryKeys)})");
+        }
+
+        private void BuildIndices(Action<string> callback)
+        {
+            if (_indices == null || _indices.Count < 1)
+                return;
+
+            foreach (var index in _indices)
+            {
+                if (_typeMap == null)
+                    throw new InvalidOperationException(
+                        "Cannot build foreign keys without a type map specified. Use WithTypeMap(...) to specify one.");
+
+                var indexAttribute = index.Key;
+                var columns = index.Value;
+
+                callback(indexAttribute.GenerateSql(columns, quoteColumnNames: _quoteColumnName));
+            }
         }
 
         private void BuildOptions(Action<string> callback)
@@ -167,6 +192,12 @@ namespace rDB
 
             BuildPrimaryKey(sql => builder
                 .Append(separator)
+                .Append(prefix)
+                .Append(sql));
+            
+            BuildIndices(sql => builder
+                .Append(separator)
+                .Append(prefix)
                 .Append(sql));
 
             builder.Append(Environment.NewLine + ")" + Environment.NewLine);

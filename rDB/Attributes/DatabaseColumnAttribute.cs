@@ -18,6 +18,8 @@ namespace rDB.Attributes
 
         public bool NotNull { get; set; } = false;
 
+
+
         public DatabaseColumnAttribute(string type)
         {
             Type = type;

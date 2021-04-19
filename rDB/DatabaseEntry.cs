@@ -92,6 +92,25 @@ namespace rDB
             return dict;
         }
 
+        public virtual Dictionary<IndexAttribute, ISet<string>> GetIndices()
+        {
+            var attributes = ReflectionExtensions.GetAttributes<IndexAttribute>(GetType());
+            var dict = new Dictionary<IndexAttribute, ISet<string>>();
+
+            foreach (var entry in attributes)
+            {
+                var index = entry.Value;
+                var property = entry.Key;
+
+                if (dict.TryGetValue(index, out var columnSet))
+                    columnSet.Add(property.Name);
+                else
+                    dict.Add(index, new HashSet<string> { property.Name });
+            }
+
+            return dict;
+        }
+
         public virtual void Save(IEnumerable<DatabaseColumnContext> columns, Action<string, object> saver) =>
             Save(columns.Select(col => col.Name), saver);
 

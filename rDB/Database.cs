@@ -157,6 +157,9 @@ namespace rDB
                         : null, 
                     instance,
                     quoteColumnNames: QuoteColumnNames)
+                .WithForeignKeys()
+                .WithIndices()
+                .WithIfNotExists(true)
                 .Build();
 
             return await Execute(sql).ConfigureAwait(false) > 0;
