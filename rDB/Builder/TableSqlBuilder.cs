@@ -161,7 +161,6 @@ namespace rDB
             }
 
             BuildOptions(appendItem);
-            BuildForeignKeyOptions(appendItem);
 
             if (anyAppended)
                 builder.Length = builder.Length - separator.Length;
@@ -196,6 +195,11 @@ namespace rDB
                 .Append(sql));
             
             BuildIndices(sql => builder
+                .Append(separator)
+                .Append(prefix)
+                .Append(sql));
+
+            BuildForeignKeyOptions(sql => builder
                 .Append(separator)
                 .Append(prefix)
                 .Append(sql));
