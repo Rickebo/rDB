@@ -13,6 +13,7 @@ using ColumnSet = System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColu
 using ColumnMap = System.Collections.Immutable.ImmutableDictionary<System.Type, System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
 using TypeMap = System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
 using System.Collections.Immutable;
+using System.Data;
 
 namespace rDB
 {
@@ -40,35 +41,39 @@ namespace rDB
 
         public Query Query() => Query<TTable>(); 
 
-        public async Task SelectOrInsert(Func<Query, Query> reader, Func<TTable> itemCreator) =>
-            await SelectOrInsert(reader, itemCreator)
+        public async Task<TTable> SelectOrInsert(Func<Query, Query> reader, Func<TTable> itemCreator) =>
+            await SelectOrInsert<TTable>(reader, itemCreator)
                 .ConfigureAwait(false);
 
-        public async Task<int> Insert(TTable entry, Predicate<DatabaseColumnContext> columnSelector = null)
+        public async Task<int> Insert(TTable entry, Predicate<DatabaseColumnContext> columnSelector = null, 
+            bool returnInsertedId = false, IDbTransaction transaction = null)
         {
-            var command = ConnectionContext.Connection.CreateCommand();
+            await using var command = Connection.CreateCommand();
+            var allColumns = Schema.ColumnMap[typeof(TTable)]?
+                .Where(col => col.Column.IsInserted);
+
             var columns = columnSelector != null
-                ? Columns.Where(col => columnSelector(col))
-                : Columns;
+                ? allColumns.Where(col => columnSelector(col))
+                : allColumns;
 
             var columnNames = string.Join(",", columns.Select(col => col.Name));
-            var columnParameterNames = string.Join(",", columns.Select(col => "@" + col.Name));
-
-            command.CommandText = $"INSERT INTO {TableName} ({columnNames}) VALUES ({columnParameterNames})";
+            var columnValues = new Dictionary<string, object>();
 
             entry.Save(columns, (name, value) =>
-            {
-                var parameter = command.CreateParameter();
+                columnValues.TryAdd(name, value));
 
-                parameter.ParameterName = name;
-                parameter.Value = value;
-
-                command.Parameters.Add(parameter);
-            });
-
-            return await command.ExecuteNonQueryAsync()
-                .ConfigureAwait(false);
+            return returnInsertedId
+                ? await Query<TTable>().InsertGetIdAsync<int>(columnValues, transaction: transaction)
+                    .ConfigureAwait(false)
+                : await Query<TTable>().InsertAsync(columnValues, transaction: transaction)
+                    .ConfigureAwait(false);
         }
+
+        public async Task<int> Insert(IEnumerable<TTable> entries, IDbTransaction transaction = null) => 
+            await Query().InsertAsync(entries, transaction: transaction);
+
+        public async Task<int> UpdateWhere(Func<Query, Query> queryProcessor, TTable entry) => 
+            await queryProcessor(Query()).UpdateAsync(entry).ConfigureAwait(false);
 
         #region Select
         public async Task<TTable> SelectFirst(Func<Query, Query> processor) =>
@@ -84,6 +89,10 @@ namespace rDB
                 .ConfigureAwait(false);
 
         #endregion
+
+        public async Task<int> Delete(Func<Query, Query> processor) =>
+            await processor(Query()).DeleteAsync()
+                .ConfigureAwait(false);
 
         public void Dispose() => ConnectionContext.Dispose();
         public async ValueTask DisposeAsync() => await ConnectionContext.DisposeAsync();
