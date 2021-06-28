@@ -14,18 +14,19 @@ namespace rDB
     public class TableSqlBuilder
     {
         private bool _ifNotExists = true;
-        private string _name = null;
+        private readonly string _name = null;
         private TypeMap _typeMap = null;
         private Dictionary<ForeignKeyAttribute, ISet<string>> _foreignKeys = null;
         private Dictionary<IndexAttribute, ISet<string>> _indices = null;
-        private IEnumerable<string> _options = null;
+        private readonly IEnumerable<string> _options = null;
         private readonly DatabaseEntry _instance;
         private ColumnSet _columnSet;
-        private bool _quoteColumnName;
+        private readonly bool _quoteColumnName;
+        private readonly bool _createIndicesSeparately;
 
         private static string NewLine => Environment.NewLine;
 
-        public TableSqlBuilder(TypeMap typeMap, ColumnSet columns, DatabaseEntry instance, bool quoteColumnNames = true)
+        public TableSqlBuilder(TypeMap typeMap, ColumnSet columns, DatabaseEntry instance, bool quoteColumnNames = true, bool createIndicesSeparately = true)
         {
             var type = instance.GetType();
 
@@ -34,6 +35,7 @@ namespace rDB
             _typeMap = typeMap ?? DatabaseEntry.BuildTypeMap();
             _columnSet = columns ?? DatabaseEntry.GetColumns(type);
             _quoteColumnName = quoteColumnNames;
+            _createIndicesSeparately = createIndicesSeparately;
         }
 
         public static TableSqlBuilder Create<T>(TypeMap typeMap, ColumnSet columns, bool quoteColumnNames = true) where T : DatabaseEntry, new() =>
@@ -117,10 +119,14 @@ namespace rDB
             if (primaryKeys == null || primaryKeys.Length < 1)
                 return;
 
-            callback($"PRIMARY KEY ({string.Join(", ", primaryKeys)})");
+            var keys = _quoteColumnName
+                ? primaryKeys.Select(key => "\"" + key + "\"")
+                : primaryKeys;
+
+            callback($"PRIMARY KEY ({string.Join(", ", keys)})");
         }
 
-        private void BuildIndices(Action<string> callback)
+        private void BuildIndices(Action<string> callback, string table)
         {
             if (_indices == null || _indices.Count < 1)
                 return;
@@ -134,7 +140,8 @@ namespace rDB
                 var indexAttribute = index.Key;
                 var columns = index.Value;
 
-                callback(indexAttribute.GenerateSql(columns, quoteColumnNames: _quoteColumnName));
+                callback(indexAttribute.GenerateSql(columns, 
+                    quoteColumnNames: _quoteColumnName, table: table));
             }
         }
 
@@ -184,7 +191,12 @@ namespace rDB
             }
 
             foreach (var column in columns)
+            {
+                if (!column.Column.IsCreated)
+                    continue;
+            
                 appendItem(column.GenerateSql(quoteColumnName: _quoteColumnName));
+            }
 
             if (anyAppended)
                 builder.Length = builder.Length - separator.Length;
@@ -194,10 +206,12 @@ namespace rDB
                 .Append(prefix)
                 .Append(sql));
             
-            BuildIndices(sql => builder
-                .Append(separator)
-                .Append(prefix)
-                .Append(sql));
+            if (!_createIndicesSeparately)
+                BuildIndices(sql => builder
+                    .Append(separator)
+                    .Append(prefix)
+                    .Append(sql), 
+                    null);
 
             BuildForeignKeyOptions(sql => builder
                 .Append(separator)
@@ -231,6 +245,18 @@ namespace rDB
 
             BuildColumns(builder);
             BuildConditions(builder);
+
+            if (_createIndicesSeparately)
+            {
+                builder.Append(';');
+
+                BuildIndices(sql => builder
+                    .Append(Environment.NewLine)
+                    .Append(sql)
+                    .Append(';'),
+                    _name);
+            }
+                
 
             return builder.ToString();
         }

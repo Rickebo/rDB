@@ -26,7 +26,7 @@ namespace rDB.Attributes
             Columns = columns;
         }
 
-        public string GenerateSql([NotNull] string table, [NotNull] IEnumerable<string> columns)
+        public string GenerateSql([NotNull] string table, [NotNull] IEnumerable<string> columns, bool quoteColumns = true)
         {
             var count = columns?.Count();
             if (count < 1)
@@ -35,11 +35,15 @@ namespace rDB.Attributes
             if (count != Columns.Length)
                 throw new ArgumentException("Cannot create foreign key when column counts dont match.", nameof(columns));
 
-            return $"FOREIGN KEY {(IndexName != null ? IndexName + " " : "")}({string.Join(", ", columns)}) " +
-                $"REFERENCES {table}({string.Join(", ", Columns)}) " +
+            return $"FOREIGN KEY {(IndexName != null ? IndexName + " " : "")}({string.Join(", ", columns.Select(col => QuoteIf(col, quoteColumns)))}) " +
+                $"REFERENCES {table}({string.Join(", ", Columns.Select(col => QuoteIf(col, quoteColumns)))}) " +
                 $"ON DELETE {GetReferenceOptionName(OnDelete)} " +
                 $"ON UPDATE {GetReferenceOptionName(OnUpdate)}";
         }
+
+        private static string QuoteIf(string text, bool doQuote) => doQuote
+            ? "\"" + text + "\""
+            : text;
 
         private string GetReferenceOptionName(ReferenceOption option) => option switch
         {

@@ -12,8 +12,8 @@ namespace rDB.Attributes
         public string Type { get; set; } = null;
         public bool Unique { get; set; } = true;
 
-        public string GenerateSql(IEnumerable<string> columns, bool quoteColumnNames) =>
-            $"{GetUniqueSql()}INDEX {Name} {GetTypeSql()}({string.Join(", ", (quoteColumnNames ? columns.Select(col => "\"" + col + "\"") : columns))})";
+        public string GenerateSql(IEnumerable<string> columns, bool quoteColumnNames, string table = null) =>
+            $"{GetPrefix(table != null)}{GetUniqueSql()}INDEX {GetIfNotExistsText(table != null)}{Name} {GetTableName(table)}{GetTypeSql()}({string.Join(", ", (quoteColumnNames ? columns.Select(col => "\"" + col + "\"") : columns))})";
 
         private string GetUniqueSql() => Unique
             ? "UNIQUE "
@@ -21,6 +21,18 @@ namespace rDB.Attributes
 
         private string GetTypeSql() => Type != null
             ? $"USING {Type} "
+            : "";
+
+        private string GetTableName(string tableName) => tableName != null
+            ? $"ON {tableName} "
+            : "";
+
+        private string GetPrefix(bool createPrefix) => createPrefix
+            ? "CREATE "
+            : "";
+
+        private string GetIfNotExistsText(bool shouldAppear) => shouldAppear
+            ? "IF NOT EXISTS "
             : "";
     }
 }
