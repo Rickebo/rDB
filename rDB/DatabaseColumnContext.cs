@@ -26,6 +26,9 @@ namespace rDB
             if (Column.NotNull)
                 sql += " NOT NULL";
 
+            if (Column.AutoIncrement)
+                sql += " AUTO_INCREMENT";
+
             if (Column.Default != null)
                 sql += $" DEFAULT {Column.Default}";
 
