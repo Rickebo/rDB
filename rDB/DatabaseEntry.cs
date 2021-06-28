@@ -11,12 +11,13 @@ using System.Collections.Immutable;
 using ColumnSet = System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>;
 using ColumnMap = System.Collections.Immutable.ImmutableDictionary<System.Type, System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
 using TypeMap = System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
+using System.Collections.Concurrent;
 
 namespace rDB
 {
     public abstract class DatabaseEntry
     {
-        private static Dictionary<ColumnKey, WeakReference<PropertyInfo>> _propertyCache = new Dictionary<ColumnKey, WeakReference<PropertyInfo>>();
+        private static ConcurrentDictionary<ColumnKey, WeakReference<PropertyInfo>> _propertyCache = new ConcurrentDictionary<ColumnKey, WeakReference<PropertyInfo>>();
 
         internal static TypeMap BuildTypeMap()
         {
@@ -136,7 +137,7 @@ namespace rDB
                 throw new InvalidOperationException("Cannot get non existing column.");
 
             if (!isCached)
-                _propertyCache.Add(key, new WeakReference<PropertyInfo>(property));
+                _propertyCache.TryAdd(key, new WeakReference<PropertyInfo>(property));
 
             return property.GetValue(this);
         }
