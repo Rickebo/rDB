@@ -17,7 +17,7 @@ namespace rDB
 {
     public abstract class DatabaseEntry
     {
-        private static ConcurrentDictionary<ColumnKey, WeakReference<PropertyInfo>> _propertyCache = new ConcurrentDictionary<ColumnKey, WeakReference<PropertyInfo>>();
+        private static readonly ConcurrentDictionary<ColumnKey, WeakReference<PropertyInfo>> PropertyCache = new ConcurrentDictionary<ColumnKey, WeakReference<PropertyInfo>>();
 
         internal static TypeMap BuildTypeMap()
         {
@@ -126,7 +126,7 @@ namespace rDB
             var type = this.GetType();
             var key = new ColumnKey(type, column);
 
-            var property = _propertyCache.TryGetValue(key, out var reference) && reference.TryGetTarget(out var referenceTarget)
+            var property = PropertyCache.TryGetValue(key, out var reference) && reference.TryGetTarget(out var referenceTarget)
                 ? referenceTarget
                 : null;
 
@@ -137,7 +137,7 @@ namespace rDB
                 throw new InvalidOperationException("Cannot get non existing column.");
 
             if (!isCached)
-                _propertyCache.TryAdd(key, new WeakReference<PropertyInfo>(property));
+                PropertyCache.TryAdd(key, new WeakReference<PropertyInfo>(property));
 
             return property.GetValue(this);
         }
@@ -156,7 +156,7 @@ namespace rDB
             public override bool Equals(object obj) => 
                 obj is ColumnKey key &&
                     ColumnName.Equals(key.ColumnName) &&
-                    Table.Equals(key.Table);
+                    Table == key.Table;
 
             public override int GetHashCode() =>
                 HashCode.Combine(Table.GetHashCode(), ColumnName.GetHashCode());
