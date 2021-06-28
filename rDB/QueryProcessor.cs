@@ -1,4 +1,6 @@
-﻿using SqlKata;
+﻿using rDB.Builder;
+
+using SqlKata;
 
 using System;
 using System.Collections.Generic;
@@ -17,6 +19,8 @@ namespace rDB
             Processors = processors;
         }
 
+        public static QueryProcessorBuilder Builder() => new QueryProcessorBuilder();
+
         public Query Process(Query query)
         {
             foreach (var processor in Processors)
@@ -33,6 +37,8 @@ namespace rDB
                 return query => processor.Process(query);
             } 
         }
+
+        public static QueryProcessor operator +(QueryProcessor a, QueryProcessor b) => new QueryProcessor(a, b);
 
         public static implicit operator Func<Query, Query>(QueryProcessor processor) => 
             query => processor.Process(query);
