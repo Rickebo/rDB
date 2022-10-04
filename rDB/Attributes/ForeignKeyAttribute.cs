@@ -26,7 +26,8 @@ namespace rDB.Attributes
             Columns = columns;
         }
 
-        public string GenerateSql([NotNull] string table, [NotNull] IEnumerable<string> columns, bool quoteColumns = true)
+        public string GenerateSql([NotNull] string table, [NotNull] IEnumerable<string> columns, 
+            bool quoteColumns = true)
         {
             var count = columns?.Count();
             if (count < 1)

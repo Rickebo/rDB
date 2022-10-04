@@ -1,9 +1,7 @@
 ﻿using Serilog;
 using Serilog.Core;
-
 using SqlKata;
 using SqlKata.Execution;
-
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -11,6 +9,8 @@ using System.Data.Common;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Dapper;
+using SqlKata.Compilers;
 
 namespace rDB
 {
@@ -26,9 +26,10 @@ namespace rDB
             Table<TableConnectionContext<TTable, TConnection>, TTable>(
                 context => new TableConnectionContext<TTable, TConnection>(context));
 
-        protected virtual TContext Table<TContext, TTable>(Func<BaseConnectionContext<TConnection>, TContext> constructor)
-           where TContext : TableConnectionContext<TTable, TConnection>
-           where TTable : DatabaseEntry =>
+        protected virtual TContext Table<TContext, TTable>(
+            Func<BaseConnectionContext<TConnection>, TContext> constructor)
+            where TContext : TableConnectionContext<TTable, TConnection>
+            where TTable : DatabaseEntry =>
             constructor(this);
 
         public virtual async Task<TTable> SelectOrInsert<TTable>(Func<Query, Query> reader, Func<TTable> itemCreator)
@@ -49,7 +50,8 @@ namespace rDB
                 .ConfigureAwait(false);
         }
 
-        public virtual async Task<TSelect> SelectOrInsert<TTable, TSelect>(Func<Query, Query> reader, Func<TTable> itemCreator)
+        public virtual async Task<TSelect> SelectOrInsert<TTable, TSelect>(Func<Query, Query> reader,
+            Func<TTable> itemCreator)
             where TTable : DatabaseEntry
         {
             var result = await reader(Query<TTable>())
@@ -70,9 +72,45 @@ namespace rDB
         public string TableName<TTable>() where TTable : DatabaseEntry =>
             Schema.TableName<TTable>();
 
-        public virtual async Task<int> Insert<TTable>(TTable entry, Predicate<DatabaseColumnContext> columnSelector = null, 
+        public async Task<int> Insert<TTable>(TTable entry,
+            Predicate<DatabaseColumnContext> columnSelector = null,
             bool returnInsertedId = false,
-            IDbTransaction transaction = null)
+            IDbTransaction transaction = null,
+            bool ignoreConflict = false)
+            where TTable : DatabaseEntry
+            => await Insert<TTable, int>(
+                    entry: entry, 
+                    columnSelector: columnSelector, 
+                    returnInsertedId: returnInsertedId, 
+                    transaction: transaction,
+                    ignoreConflict: ignoreConflict,
+                    idConverter: Convert.ToInt32,
+                    nonIdConverter: i => i)
+                .ConfigureAwait(false);
+
+        public async Task<long> InsertLong<TTable>(TTable entry,
+            Predicate<DatabaseColumnContext> columnSelector = null,
+            bool returnInsertedId = false,
+            IDbTransaction transaction = null,
+            bool ignoreConflict = false)
+            where TTable : DatabaseEntry
+            => await Insert<TTable, long>(
+                    entry: entry, 
+                    columnSelector: columnSelector, 
+                    returnInsertedId: returnInsertedId, 
+                    transaction: transaction, 
+                    ignoreConflict: ignoreConflict,
+                    idConverter: Convert.ToInt64,
+                    nonIdConverter: i => i)
+                .ConfigureAwait(false);
+
+        public virtual async Task<TId> Insert<TTable, TId>(TTable entry,
+            Predicate<DatabaseColumnContext> columnSelector = null,
+            bool returnInsertedId = false,
+            IDbTransaction transaction = null,
+            Func<object, TId> idConverter = null,
+            Func<int, TId> nonIdConverter = null,
+            bool ignoreConflict = false)
             where TTable : DatabaseEntry
         {
             var allColumns = Schema.ColumnMap[typeof(TTable)]?
@@ -88,15 +126,51 @@ namespace rDB
             entry.Save(columns, (name, value) =>
                 columnValues.TryAdd(name, value));
 
-            return returnInsertedId
-                ? await Query<TTable>().InsertGetIdAsync<int>(columnValues, transaction: transaction)
-                    .ConfigureAwait(false)
-                : await Query<TTable>().InsertAsync(columnValues, transaction: transaction)
-                    .ConfigureAwait(false);
+            var query = Query<TTable>()
+                .AsInsert(columnValues);
+
+            var compiler = Factory.Compiler;
+            var compiled = compiler.Compile(query);
+            var commandText = compiled.Sql;
+
+            if (ignoreConflict)
+                switch (compiler)
+                {
+                    case MySqlCompiler _:
+                        const string insert = "INSERT";
+                        if (commandText.StartsWith(insert))
+                            commandText = commandText.Insert(insert.Length, " IGNORE");
+                        
+                        break;
+                    
+                    case PostgresCompiler _:
+                        commandText += " ON CONFLICT DO NOTHING";
+                        
+                        break;
+                    
+                    default:
+                        throw new InvalidOperationException(
+                            "Cannot ignore conflicts for the current DBMS.");
+                }
+
+            var commandDefinition = new CommandDefinition(
+                commandText: commandText,
+                parameters: compiled.NamedBindings,
+                transaction: transaction,
+                commandTimeout: Factory.QueryTimeout
+            );
+
+            if ((!returnInsertedId || idConverter != null) && (returnInsertedId || nonIdConverter != null))
+                return returnInsertedId
+                    ? idConverter(await Connection.ExecuteScalarAsync(commandDefinition).ConfigureAwait(false))
+                    : nonIdConverter(await Connection.ExecuteAsync(commandDefinition).ConfigureAwait(false));
+            
+            await Connection.ExecuteAsync(commandDefinition).ConfigureAwait(false);
+            return default;
         }
 
         public async Task<bool> Exists<TTable>(Func<Query, Query> queryProcessor)
-            where TTable : DatabaseEntry => 
+            where TTable : DatabaseEntry =>
             await queryProcessor(Query<TTable>().SelectRaw("1").Limit(1)).CountAsync<int>().ConfigureAwait(false) > 0;
 
         public Query Query<TTable>() where TTable : DatabaseEntry =>
@@ -109,7 +183,8 @@ namespace rDB
                 .ConfigureAwait(false);
         }
 
-        public string Column<TTable>(string columnName, bool cite = false, bool citeLeft = false, bool citeRight = false) where TTable : DatabaseEntry =>
+        public string Column<TTable>(string columnName, bool cite = false, bool citeLeft = false,
+            bool citeRight = false) where TTable : DatabaseEntry =>
             Cite(TableName<TTable>(), cite || citeLeft) + "." + Cite(columnName, cite || citeRight);
 
         private static string Cite(string text, bool cite) => cite
@@ -117,9 +192,10 @@ namespace rDB
             : text;
 
         #region Select generic
+
         public virtual async Task<TTable> SelectFirst<TTable>(Func<Query, Query> processor)
             where TTable : DatabaseEntry =>
-                await SelectFirst<TTable, TTable>(processor).ConfigureAwait(false);
+            await SelectFirst<TTable, TTable>(processor).ConfigureAwait(false);
 
         public virtual async Task<T> SelectFirst<T, TTable>(Func<Query, Query> processor)
             where TTable : DatabaseEntry =>
@@ -128,7 +204,7 @@ namespace rDB
 
         public virtual async Task<TTable> SelectFirstOrDefault<TTable>(Func<Query, Query> processor)
             where TTable : DatabaseEntry =>
-                await SelectFirstOrDefault<TTable, TTable>(processor).ConfigureAwait(false);
+            await SelectFirstOrDefault<TTable, TTable>(processor).ConfigureAwait(false);
 
         public virtual async Task<T> SelectFirstOrDefault<T, TTable>(Func<Query, Query> processor)
             where TTable : DatabaseEntry =>
@@ -138,18 +214,20 @@ namespace rDB
 
         public virtual async Task<IEnumerable<TTable>> Select<TTable>(Func<Query, Query> processor)
             where TTable : DatabaseEntry =>
-                await Select<TTable, TTable>(processor).ConfigureAwait(false);
+            await Select<TTable, TTable>(processor).ConfigureAwait(false);
 
         public virtual async Task<IEnumerable<T>> Select<T, TTable>(Func<Query, Query> processor)
             where TTable : DatabaseEntry =>
             await processor(Query<TTable>()).GetAsync<T>()
                 .ConfigureAwait(false);
+
         #endregion
 
         #region Select reader
+
         public virtual async Task<TTable> SelectFirstReader<TTable>(Func<Query, Query> processor)
             where TTable : DatabaseEntry =>
-                await SelectFirst<TTable, TTable>(processor).ConfigureAwait(false);
+            await SelectFirst<TTable, TTable>(processor).ConfigureAwait(false);
 
         public virtual async Task<T> SelectFirstReader<T, TTable>(Func<Query, Query> processor)
             where TTable : DatabaseEntry =>
@@ -158,7 +236,7 @@ namespace rDB
 
         public virtual async Task<TTable> SelectFirstOrDefaultReader<TTable>(Func<Query, Query> processor)
             where TTable : DatabaseEntry =>
-                await SelectFirstOrDefault<TTable, TTable>(processor).ConfigureAwait(false);
+            await SelectFirstOrDefault<TTable, TTable>(processor).ConfigureAwait(false);
 
         //public virtual async Task<DbDataReader> SelectFirstOrDefaultReader<TTable>(Func<Query, Query> processor)
         //    where TTable : DatabaseEntry =>
@@ -168,15 +246,17 @@ namespace rDB
 
         public virtual async Task<IEnumerable<TTable>> SelectReader<TTable>(Func<Query, Query> processor)
             where TTable : DatabaseEntry =>
-                await SelectReader<TTable, TTable>(processor).ConfigureAwait(false);
+            await SelectReader<TTable, TTable>(processor).ConfigureAwait(false);
 
         public virtual async Task<IEnumerable<T>> SelectReader<T, TTable>(Func<Query, Query> processor)
             where TTable : DatabaseEntry =>
             await processor(Query<TTable>()).GetAsync<T>()
                 .ConfigureAwait(false);
+
         #endregion
 
         #region Disposable
+
         public virtual void Dispose()
         {
             Factory?.Dispose();
@@ -188,7 +268,7 @@ namespace rDB
             Factory?.Dispose();
             await Connection.DisposeAsync();
         }
+
         #endregion
     }
 }
-

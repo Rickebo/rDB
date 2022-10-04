@@ -26,7 +26,8 @@ namespace rDB
 
         private static string NewLine => Environment.NewLine;
 
-        public TableSqlBuilder(TypeMap typeMap, ColumnSet columns, DatabaseEntry instance, bool quoteColumnNames = true, bool createIndicesSeparately = true)
+        public TableSqlBuilder(TypeMap typeMap, ColumnSet columns, DatabaseEntry instance, 
+            bool quoteColumnNames = true, bool createIndicesSeparately = true)
         {
             var type = instance.GetType();
 
@@ -38,11 +39,16 @@ namespace rDB
             _createIndicesSeparately = createIndicesSeparately;
         }
 
-        public static TableSqlBuilder Create<T>(TypeMap typeMap, ColumnSet columns, bool quoteColumnNames = true) where T : DatabaseEntry, new() =>
-            new TableSqlBuilder(typeMap, columns, new T(), quoteColumnNames: quoteColumnNames);
+        public static TableSqlBuilder Create<T>(TypeMap typeMap, ColumnSet columns, 
+            bool quoteColumnNames = true, bool quoteTableNames = true) 
+            where T : DatabaseEntry, new() =>
+            new TableSqlBuilder(typeMap, columns, new T(), 
+                quoteColumnNames: quoteColumnNames);
 
-        public static TableSqlBuilder Create(TypeMap typeMap, ColumnSet columns, DatabaseEntry instance, bool quoteColumnNames = true) =>
-            new TableSqlBuilder(typeMap, columns, instance, quoteColumnNames: quoteColumnNames);
+        public static TableSqlBuilder Create(TypeMap typeMap, ColumnSet columns, DatabaseEntry instance, 
+            bool quoteColumnNames = true, bool quoteTableNames = true) =>
+            new TableSqlBuilder(typeMap, columns, instance, 
+                quoteColumnNames: quoteColumnNames);
 
         public TableSqlBuilder WithIfNotExists(bool value)
         {
@@ -104,7 +110,7 @@ namespace rDB
                     throw new InvalidOperationException(
                         $"Cannot resolve foreign key referencing type {foreignKey.Table} as it is not defined in the specified type map.");
 
-                callback(foreignKey.GenerateSql(referencedTableName, columns));
+                callback(foreignKey.GenerateSql(referencedTableName, columns, quoteColumns: _quoteColumnName));
             }
         }
 
