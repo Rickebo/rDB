@@ -1,7 +1,9 @@
 ﻿using Serilog;
 using Serilog.Core;
+
 using SqlKata;
 using SqlKata.Execution;
+
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -9,111 +11,160 @@ using System.Data.Common;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+
 using Dapper;
+
 using SqlKata.Compilers;
 
 namespace rDB
 {
-    public abstract class BaseConnectionContext<TConnection> : IDisposable, IAsyncDisposable
+    using System.Runtime.CompilerServices;
+    using System.Threading;
+
+    public abstract class BaseConnectionContext<TConnection>
+        : IDisposable, IAsyncDisposable
         where TConnection : DbConnection
     {
         public abstract SchemaContext Schema { get; }
         public abstract TConnection Connection { get; }
         public abstract QueryFactory Factory { get; }
 
-        public virtual TableConnectionContext<TTable, TConnection> Table<TTable>()
+        public virtual TableConnectionContext<TTable, TConnection>
+            Table<TTable>()
             where TTable : DatabaseEntry =>
             Table<TableConnectionContext<TTable, TConnection>, TTable>(
-                context => new TableConnectionContext<TTable, TConnection>(context));
+                context =>
+                    new TableConnectionContext<TTable, TConnection>(context)
+            );
 
         protected virtual TContext Table<TContext, TTable>(
-            Func<BaseConnectionContext<TConnection>, TContext> constructor)
+            Func<BaseConnectionContext<TConnection>, TContext> constructor
+        )
             where TContext : TableConnectionContext<TTable, TConnection>
             where TTable : DatabaseEntry =>
             constructor(this);
 
-        public virtual async Task<TTable> SelectOrInsert<TTable>(Func<Query, Query> reader, Func<TTable> itemCreator)
+        public virtual async Task<TTable> SelectOrInsert<TTable>(
+            Func<Query, Query> reader,
+            Func<TTable> itemCreator,
+            IDbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        )
             where TTable : DatabaseEntry
         {
             var result = await reader(Query<TTable>())
-                .FirstOrDefaultAsync<TTable>()
+                .FirstOrDefaultAsync<TTable>(
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                )
                 .ConfigureAwait(false);
 
             if (result != null)
                 return result;
 
-            await Insert(itemCreator())
+            await Insert(itemCreator(), transaction: transaction)
                 .ConfigureAwait(false);
 
             return await reader(Query<TTable>())
-                .FirstOrDefaultAsync<TTable>()
+                .FirstOrDefaultAsync<TTable>(
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                )
                 .ConfigureAwait(false);
         }
 
-        public virtual async Task<TSelect> SelectOrInsert<TTable, TSelect>(Func<Query, Query> reader,
-            Func<TTable> itemCreator)
+        public virtual async Task<TSelect> SelectOrInsert<TTable, TSelect>(
+            Func<Query, Query> reader,
+            Func<TTable> itemCreator,
+            IDbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        )
             where TTable : DatabaseEntry
         {
             var result = await reader(Query<TTable>())
-                .FirstOrDefaultAsync<TSelect>()
+                .FirstOrDefaultAsync<TSelect>(
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                )
                 .ConfigureAwait(false);
 
             if (result != null)
                 return result;
 
-            await Insert(itemCreator())
+            await Insert(
+                    itemCreator(),
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                )
                 .ConfigureAwait(false);
 
             return await reader(Query<TTable>())
-                .FirstOrDefaultAsync<TSelect>()
+                .FirstOrDefaultAsync<TSelect>(
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                )
                 .ConfigureAwait(false);
         }
 
         public string TableName<TTable>() where TTable : DatabaseEntry =>
             Schema.TableName<TTable>();
 
-        public async Task<int> Insert<TTable>(TTable entry,
+        public async Task<int> Insert<TTable>(
+            TTable entry,
             Predicate<DatabaseColumnContext> columnSelector = null,
             bool returnInsertedId = false,
             IDbTransaction transaction = null,
-            bool ignoreConflict = false)
-            where TTable : DatabaseEntry
-            => await Insert<TTable, int>(
-                    entry: entry, 
-                    columnSelector: columnSelector, 
-                    returnInsertedId: returnInsertedId, 
+            bool ignoreConflict = false,
+            CancellationToken cancellationToken = default
+        )
+            where TTable : DatabaseEntry =>
+            await Insert(
+                    entry: entry,
+                    columnSelector: columnSelector,
+                    returnInsertedId: returnInsertedId,
                     transaction: transaction,
                     ignoreConflict: ignoreConflict,
                     idConverter: Convert.ToInt32,
-                    nonIdConverter: i => i)
+                    nonIdConverter: i => i,
+                    cancellationToken: cancellationToken
+                )
                 .ConfigureAwait(false);
 
-        public async Task<long> InsertLong<TTable>(TTable entry,
+        public async Task<long> InsertLong<TTable>(
+            TTable entry,
             Predicate<DatabaseColumnContext> columnSelector = null,
             bool returnInsertedId = false,
             IDbTransaction transaction = null,
-            bool ignoreConflict = false)
-            where TTable : DatabaseEntry
-            => await Insert<TTable, long>(
-                    entry: entry, 
-                    columnSelector: columnSelector, 
-                    returnInsertedId: returnInsertedId, 
-                    transaction: transaction, 
+            bool ignoreConflict = false,
+            CancellationToken cancellationToken = default
+        )
+            where TTable : DatabaseEntry =>
+            await Insert<TTable, long>(
+                    entry: entry,
+                    columnSelector: columnSelector,
+                    returnInsertedId: returnInsertedId,
+                    transaction: transaction,
                     ignoreConflict: ignoreConflict,
                     idConverter: Convert.ToInt64,
-                    nonIdConverter: i => i)
+                    nonIdConverter: i => i,
+                    cancellationToken: cancellationToken
+                )
                 .ConfigureAwait(false);
 
-        public virtual async Task<TId> Insert<TTable, TId>(TTable entry,
+        public virtual async Task<TId> Insert<TTable, TId>(
+            TTable entry,
             Predicate<DatabaseColumnContext> columnSelector = null,
             bool returnInsertedId = false,
             IDbTransaction transaction = null,
             Func<object, TId> idConverter = null,
             Func<int, TId> nonIdConverter = null,
-            bool ignoreConflict = false)
+            bool ignoreConflict = false,
+            CancellationToken cancellationToken = default
+        )
             where TTable : DatabaseEntry
         {
-            var allColumns = Schema.ColumnMap[typeof(TTable)]?
+            var allColumns = Schema.ColumnMap[typeof(TTable)]
+                ?
                 .Where(col => col.Column.IsInserted);
 
             var columns = columnSelector != null
@@ -123,8 +174,11 @@ namespace rDB
             var columnNames = string.Join(",", columns.Select(col => col.Name));
             var columnValues = new Dictionary<string, object>();
 
-            entry.Save(columns, (name, value) =>
-                columnValues.TryAdd(name, value));
+            entry.Save(
+                columns,
+                (name, value) =>
+                    columnValues.TryAdd(name, value)
+            );
 
             var query = Query<TTable>()
                 .AsInsert(columnValues);
@@ -139,104 +193,268 @@ namespace rDB
                     case MySqlCompiler _:
                         const string insert = "INSERT";
                         if (commandText.StartsWith(insert))
-                            commandText = commandText.Insert(insert.Length, " IGNORE");
-                        
+                            commandText = commandText.Insert(
+                                insert.Length,
+                                " IGNORE"
+                            );
+
                         break;
-                    
+
                     case PostgresCompiler _:
                         commandText += " ON CONFLICT DO NOTHING";
-                        
+
                         break;
-                    
+
                     default:
                         throw new InvalidOperationException(
-                            "Cannot ignore conflicts for the current DBMS.");
+                            "Cannot ignore conflicts for the current DBMS."
+                        );
                 }
 
             var commandDefinition = new CommandDefinition(
                 commandText: commandText,
                 parameters: compiled.NamedBindings,
                 transaction: transaction,
-                commandTimeout: Factory.QueryTimeout
+                commandTimeout: Factory.QueryTimeout,
+                cancellationToken: cancellationToken
             );
 
-            if ((!returnInsertedId || idConverter != null) && (returnInsertedId || nonIdConverter != null))
+            if ((!returnInsertedId || idConverter != null) &&
+                (returnInsertedId || nonIdConverter != null))
                 return returnInsertedId
-                    ? idConverter(await Connection.ExecuteScalarAsync(commandDefinition).ConfigureAwait(false))
-                    : nonIdConverter(await Connection.ExecuteAsync(commandDefinition).ConfigureAwait(false));
-            
-            await Connection.ExecuteAsync(commandDefinition).ConfigureAwait(false);
+                    ? idConverter(
+                        await Connection.ExecuteScalarAsync(commandDefinition)
+                            .ConfigureAwait(false)
+                    )
+                    : nonIdConverter(
+                        await Connection.ExecuteAsync(commandDefinition)
+                            .ConfigureAwait(false)
+                    );
+
+            await Connection.ExecuteAsync(commandDefinition)
+                .ConfigureAwait(false);
             return default;
         }
 
-        public async Task<bool> Exists<TTable>(Func<Query, Query> queryProcessor)
+        public async Task<bool> Exists<TTable>(
+            Func<Query, Query> queryProcessor,
+            IDbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        )
             where TTable : DatabaseEntry =>
-            await queryProcessor(Query<TTable>().SelectRaw("1").Limit(1)).CountAsync<int>().ConfigureAwait(false) > 0;
+            await queryProcessor(Query<TTable>().SelectRaw("1").Limit(1))
+                .CountAsync<int>(
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                )
+                .ConfigureAwait(false) >
+            0;
 
         public Query Query<TTable>() where TTable : DatabaseEntry =>
             Factory.Query(Schema.TableName<TTable>());
 
-        public async Task<T> Query<T, TTable>(Func<Query, Task<T>> selector) where TTable : DatabaseEntry
+        public async Task<T> Query<T, TTable>(
+            Func<Query, Task<T>> selector
+        )
+            where TTable : DatabaseEntry
         {
             var query = Factory.Query(Schema.TableName<TTable>());
             return await selector(query)
                 .ConfigureAwait(false);
         }
 
-        public string Column<TTable>(string columnName, bool cite = false, bool citeLeft = false,
-            bool citeRight = false) where TTable : DatabaseEntry =>
-            Cite(TableName<TTable>(), cite || citeLeft) + "." + Cite(columnName, cite || citeRight);
+        public async Task<T> Query<T, TTable>(
+            Func<Query, IDbTransaction, CancellationToken, Task<T>> selector,
+            IDbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        )
+            where TTable : DatabaseEntry
+        {
+            var query = Factory.Query(Schema.TableName<TTable>());
+            return await selector(query, transaction, cancellationToken)
+                .ConfigureAwait(false);
+        }
 
-        private static string Cite(string text, bool cite) => cite
-            ? "\"" + text + "\""
-            : text;
+        public string Column<TTable>(
+            string columnName,
+            bool cite = false,
+            bool citeLeft = false,
+            bool citeRight = false
+        ) where TTable : DatabaseEntry =>
+            Cite(TableName<TTable>(), cite || citeLeft) +
+            "." +
+            Cite(columnName, cite || citeRight);
 
-        #region Select generic
+        private static string Cite(string text, bool cite) =>
+            cite
+                ? "\"" + text + "\""
+                : text;
 
-        public virtual async Task<TTable> SelectFirst<TTable>(Func<Query, Query> processor)
+#region Select generic
+
+        public virtual async Task<TTable> SelectFirst<TTable>(
+            Func<Query, Query> processor,
+            IDbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        )
             where TTable : DatabaseEntry =>
-            await SelectFirst<TTable, TTable>(processor).ConfigureAwait(false);
-
-        public virtual async Task<T> SelectFirst<T, TTable>(Func<Query, Query> processor)
-            where TTable : DatabaseEntry =>
-            await processor(Query<TTable>()).FirstAsync<T>()
+            await SelectFirst<TTable, TTable>(
+                    processor,
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                )
                 .ConfigureAwait(false);
 
-        public virtual async Task<TTable> SelectFirstOrDefault<TTable>(Func<Query, Query> processor)
+        public virtual async Task<T> SelectFirst<T, TTable>(
+            Func<Query, Query> processor,
+            IDbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        )
             where TTable : DatabaseEntry =>
-            await SelectFirstOrDefault<TTable, TTable>(processor).ConfigureAwait(false);
+            await processor(Query<TTable>())
+                .FirstAsync<T>(
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                )
+                .ConfigureAwait(false);
 
-        public virtual async Task<T> SelectFirstOrDefault<T, TTable>(Func<Query, Query> processor)
+        public virtual async Task<TTable> SelectFirstOrDefault<TTable>(
+            Func<Query, Query> processor,
+            IDbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        )
             where TTable : DatabaseEntry =>
-            await processor(Query<TTable>()).FirstOrDefaultAsync<T>()
+            await SelectFirstOrDefault<TTable, TTable>(
+                    processor,
+                    transaction: transaction
+                )
+                .ConfigureAwait(false);
+
+        public virtual async Task<T> SelectFirstOrDefault<T, TTable>(
+            Func<Query, Query> processor,
+            IDbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        )
+            where TTable : DatabaseEntry =>
+            await processor(Query<TTable>())
+                .FirstOrDefaultAsync<T>(
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                )
                 .ConfigureAwait(false);
 
 
-        public virtual async Task<IEnumerable<TTable>> Select<TTable>(Func<Query, Query> processor)
+        public virtual async Task<IEnumerable<TTable>> Select<TTable>(
+            Func<Query, Query> processor,
+            IDbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        )
             where TTable : DatabaseEntry =>
-            await Select<TTable, TTable>(processor).ConfigureAwait(false);
-
-        public virtual async Task<IEnumerable<T>> Select<T, TTable>(Func<Query, Query> processor)
-            where TTable : DatabaseEntry =>
-            await processor(Query<TTable>()).GetAsync<T>()
+            await Select<TTable, TTable>(
+                    processor,
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                )
                 .ConfigureAwait(false);
 
-        #endregion
-
-        #region Select reader
-
-        public virtual async Task<TTable> SelectFirstReader<TTable>(Func<Query, Query> processor)
+        public virtual async Task<IEnumerable<T>> Select<T, TTable>(
+            Func<Query, Query> processor,
+            IDbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        )
             where TTable : DatabaseEntry =>
-            await SelectFirst<TTable, TTable>(processor).ConfigureAwait(false);
-
-        public virtual async Task<T> SelectFirstReader<T, TTable>(Func<Query, Query> processor)
-            where TTable : DatabaseEntry =>
-            await processor(Query<TTable>()).FirstAsync<T>()
+            await processor(Query<TTable>())
+                .GetAsync<T>(
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                )
                 .ConfigureAwait(false);
 
-        public virtual async Task<TTable> SelectFirstOrDefaultReader<TTable>(Func<Query, Query> processor)
+        public virtual async IAsyncEnumerable<TTable> Paginate<TTable>(
+            Func<Query, Query> processor,
+            int page = 0,
+            int pageSize = 32,
+            IDbTransaction transaction = null,
+            [EnumeratorCancellation]
+            CancellationToken cancellationToken = default
+        ) where TTable : DatabaseEntry
+        {
+            await foreach(var item in Paginate<TTable, TTable>(
+                processor,
+                page,
+                pageSize,
+                transaction,
+                cancellationToken
+            ))
+                yield return item;
+        }
+
+        public virtual async IAsyncEnumerable<T> Paginate<T, TTable>(
+            Func<Query, Query> processor,
+            int page = 0,
+            int pageSize = 32,
+            IDbTransaction transaction = null,
+            [EnumeratorCancellation]
+            CancellationToken cancellationToken = default
+        ) where TTable : DatabaseEntry
+        {
+            var pagination = await processor(Query<TTable>())
+                .PaginateAsync<T>(
+                    page,
+                    pageSize,
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                );
+
+            foreach (var paginationPage in pagination.Each)
+            {
+                foreach (var item in paginationPage.List)
+                    yield return item;
+            }
+        }
+
+#endregion
+
+#region Select reader
+
+        public virtual async Task<TTable> SelectFirstReader<TTable>(
+            Func<Query, Query> processor,
+            IDbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        )
             where TTable : DatabaseEntry =>
-            await SelectFirstOrDefault<TTable, TTable>(processor).ConfigureAwait(false);
+            await SelectFirst<TTable, TTable>(
+                    processor,
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                )
+                .ConfigureAwait(false);
+
+        public virtual async Task<T> SelectFirstReader<T, TTable>(
+            Func<Query, Query> processor,
+            IDbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        )
+            where TTable : DatabaseEntry =>
+            await processor(Query<TTable>())
+                .FirstAsync<T>(
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                )
+                .ConfigureAwait(false);
+
+        public virtual async Task<TTable> SelectFirstOrDefaultReader<TTable>(
+            Func<Query, Query> processor,
+            IDbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        )
+            where TTable : DatabaseEntry =>
+            await SelectFirstOrDefault<TTable, TTable>(
+                    processor,
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                )
+                .ConfigureAwait(false);
 
         //public virtual async Task<DbDataReader> SelectFirstOrDefaultReader<TTable>(Func<Query, Query> processor)
         //    where TTable : DatabaseEntry =>
@@ -244,18 +462,35 @@ namespace rDB
         //        .ConfigureAwait(false);
 
 
-        public virtual async Task<IEnumerable<TTable>> SelectReader<TTable>(Func<Query, Query> processor)
+        public virtual async Task<IEnumerable<TTable>> SelectReader<TTable>(
+            Func<Query, Query> processor,
+            IDbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        )
             where TTable : DatabaseEntry =>
-            await SelectReader<TTable, TTable>(processor).ConfigureAwait(false);
-
-        public virtual async Task<IEnumerable<T>> SelectReader<T, TTable>(Func<Query, Query> processor)
-            where TTable : DatabaseEntry =>
-            await processor(Query<TTable>()).GetAsync<T>()
+            await SelectReader<TTable, TTable>(
+                    processor,
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                )
                 .ConfigureAwait(false);
 
-        #endregion
+        public virtual async Task<IEnumerable<T>> SelectReader<T, TTable>(
+            Func<Query, Query> processor,
+            IDbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        )
+            where TTable : DatabaseEntry =>
+            await processor(Query<TTable>())
+                .GetAsync<T>(
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                )
+                .ConfigureAwait(false);
 
-        #region Disposable
+#endregion
+
+#region Disposable
 
         public virtual void Dispose()
         {
@@ -269,6 +504,6 @@ namespace rDB
             await Connection.DisposeAsync();
         }
 
-        #endregion
+#endregion
     }
 }
