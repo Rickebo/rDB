@@ -389,6 +389,25 @@ namespace rDB
                 yield return item;
         }
 
+        public virtual async IAsyncEnumerable<TTable> Paginate<TTable>(
+            Query query,
+            int page = 0,
+            int pageSize = 32,
+            IDbTransaction transaction = null,
+            [EnumeratorCancellation]
+            CancellationToken cancellationToken = default
+        ) where TTable : DatabaseEntry
+        {
+            await foreach (var item in Paginate<TTable, TTable>(
+                               query,
+                               page,
+                               pageSize,
+                               transaction,
+                               cancellationToken
+                           ))
+                yield return item;
+        }
+
         public virtual async IAsyncEnumerable<T> Paginate<T, TTable>(
             Func<Query, Query> processor,
             int page = 0,
@@ -399,6 +418,30 @@ namespace rDB
         ) where TTable : DatabaseEntry
         {
             var pagination = await processor(Query<TTable>())
+                .PaginateAsync<T>(
+                    page,
+                    pageSize,
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                );
+
+            foreach (var paginationPage in pagination.Each)
+            {
+                foreach (var item in paginationPage.List)
+                    yield return item;
+            }
+        }
+
+        public virtual async IAsyncEnumerable<T> Paginate<T, TTable>(
+            Query query,
+            int page = 0,
+            int pageSize = 32,
+            IDbTransaction transaction = null,
+            [EnumeratorCancellation]
+            CancellationToken cancellationToken = default
+        ) where TTable : DatabaseEntry
+        {
+            var pagination = await query
                 .PaginateAsync<T>(
                     page,
                     pageSize,
