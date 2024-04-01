@@ -105,15 +105,19 @@ namespace rDB
         public async Task<bool> DropTable<T>() where T : DatabaseEntry =>
             await DropTable(typeof(T));
         
-        public async Task<bool> DropTable(Type type) =>
-            await Execute($"DROP TABLE IF EXISTS {TableName(type)}")
+        public async Task<bool> DropTable(Type type, string option = "") =>
+            await Execute($"DROP TABLE IF EXISTS {TableName(type)}{option}")
                 .ConfigureAwait(false) > 0;
 
-        public async Task<int> DropTables()
+        public async Task<int> DropTables(bool cascade = false)
         {
+            var option = new StringBuilder();
+            if (cascade)
+                option.Append(" CASCADE");
+            
             var sum = 0;
             foreach (var type in Schema.ColumnMap.Keys)
-                sum += await DropTable(type).ConfigureAwait(false) ? 1 : 0;
+                sum += await DropTable(type, option.ToString()).ConfigureAwait(false) ? 1 : 0;
 
             return sum;
         }
