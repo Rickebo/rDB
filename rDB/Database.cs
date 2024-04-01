@@ -1,5 +1,4 @@
 ﻿using SqlKata.Compilers;
-
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -7,18 +6,20 @@ using System.Data.Common;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-
 using SqlKata;
 using System.Collections.Concurrent;
-
-using ColumnSet = System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>;
-using ColumnMap = System.Collections.Immutable.IImmutableDictionary<System.Type, System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>>;
-using TypeMap = System.Collections.Immutable.IImmutableDictionary<System.Type, string>;
+using ColumnSet =
+    System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>;
+using ColumnMap =
+    System.Collections.Immutable.IImmutableDictionary<System.Type, System.
+        Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>>;
+using TypeMap =
+    System.Collections.Immutable.IImmutableDictionary<System.Type, string>;
 using Humanizer;
 
 namespace rDB
 {
-    public abstract class Database<TConnection> 
+    public abstract class Database<TConnection>
         where TConnection : DbConnection
     {
         private AtomicBoolean _isConfigured = new AtomicBoolean(false);
@@ -26,7 +27,10 @@ namespace rDB
         private volatile int _openConnections = 0;
         public int OpenConnections => _openConnections;
 
-        private ConcurrentDictionary<TConnection, object> _connections { get; } = new ConcurrentDictionary<TConnection, object>();
+        private ConcurrentDictionary<TConnection, object>
+            _connections { get; } =
+            new ConcurrentDictionary<TConnection, object>();
+
         public ICollection<TConnection> Connections => _connections.Keys;
 
         protected SchemaContext Schema { get; private set; }
@@ -43,23 +47,27 @@ namespace rDB
         public void Configure(TypeMap typeMap, ColumnMap tableColumnMap)
         {
             if (!_isConfigured.Set(true))
-                throw new InvalidOperationException("Cannot configure already configured database.");
+                throw new InvalidOperationException(
+                    "Cannot configure already configured database.");
 
             Schema = new SchemaContext(tableColumnMap, typeMap);
         }
 
         protected abstract Task<TConnection> GetConnection();
 
-        public virtual async Task<ConnectionContext<TConnection>> GetConnectionContext() =>
+        public virtual async Task<ConnectionContext<TConnection>>
+            GetConnectionContext() =>
             await GetConnectionContext(() => CreateConnectionContext())
-            .ConfigureAwait(false);
+                .ConfigureAwait(false);
 
-        public virtual async Task<TContext> GetConnectionContext<TContext>(Func<Task<TContext>> contextConstructor)
+        public virtual async Task<TContext> GetConnectionContext<TContext>(
+            Func<Task<TContext>> contextConstructor
+        )
             where TContext : ConnectionContext<TConnection>
         {
             var context = await contextConstructor()
                 .ConfigureAwait(false);
-            
+
             context.OnDispose += (s, a) =>
             {
                 _connections.TryRemove(a.Context.Connection, out _);
@@ -77,23 +85,33 @@ namespace rDB
 
         public string TableName(Type type) => Schema.TableName(type);
 
-        private async Task<ConnectionContext<TConnection>> CreateConnectionContext() =>
-            new ConnectionContext<TConnection>(await GetConnection().ConfigureAwait(false), SqlCompiler, Schema);
+        private async Task<ConnectionContext<TConnection>>
+            CreateConnectionContext() =>
+            new ConnectionContext<TConnection>(
+                await GetConnection().ConfigureAwait(false), SqlCompiler,
+                Schema);
 
-        protected virtual async Task<TContext> Table<TContext, TTable>(Func<ConnectionContext<TConnection>, TContext> constructor)
-           where TContext : TableConnectionContext<TTable, TConnection>
-           where TTable : DatabaseEntry =>
+        protected virtual async Task<TContext> Table<TContext, TTable>(
+            Func<ConnectionContext<TConnection>, TContext> constructor
+        )
+            where TContext : TableConnectionContext<TTable, TConnection>
+            where TTable : DatabaseEntry =>
             constructor(await GetConnectionContext().ConfigureAwait(false));
 
 
-        public virtual async Task<TableConnectionContext<TTable, TConnection>> Table<TTable>()
+        public virtual async Task<TableConnectionContext<TTable, TConnection>>
+            Table<TTable>()
             where TTable : DatabaseEntry =>
-            await Table<TableConnectionContext<TTable, TConnection>, TTable>(context =>
-                new TableConnectionContext<TTable, TConnection>(context))
+            await Table<TableConnectionContext<TTable, TConnection>, TTable>(
+                    context =>
+                        new TableConnectionContext<TTable, TConnection>(
+                            context))
                 .ConfigureAwait(false);
 
 
-        public async Task<TResult> Select<TTable, TResult>(Func<Query, Task<TResult>> selector) 
+        public async Task<TResult> Select<TTable, TResult>(
+            Func<Query, Task<TResult>> selector
+        )
             where TTable : DatabaseEntry
         {
             await using var context = await Table<TTable>();
@@ -104,29 +122,37 @@ namespace rDB
 
         public async Task<bool> DropTable<T>() where T : DatabaseEntry =>
             await DropTable(typeof(T));
-        
+
         public async Task<bool> DropTable(Type type, string option = "") =>
             await Execute($"DROP TABLE IF EXISTS {TableName(type)}{option}")
                 .ConfigureAwait(false) > 0;
-
+        
         public async Task<int> DropTables(bool cascade = false)
         {
             var option = new StringBuilder();
             if (cascade)
                 option.Append(" CASCADE");
-            
+
             var sum = 0;
             foreach (var type in Schema.ColumnMap.Keys)
-                sum += await DropTable(type, option.ToString()).ConfigureAwait(false) ? 1 : 0;
+            {
+                sum += await DropTable(type, option.ToString())
+                    .ConfigureAwait(false)
+                    ? 1
+                    : 0;
+            }
 
             return sum;
         }
 
-        public async Task<int> Execute(string sql, params Parameter[] parameters)
+        public async Task<int> Execute(
+            string sql,
+            params Parameter[] parameters
+        )
         {
             await using var connection = await GetConnection()
                 .ConfigureAwait(false);
-            
+
             await using var command = connection.CreateCommand();
 
             command.CommandText = sql;
@@ -147,18 +173,20 @@ namespace rDB
                 .ConfigureAwait(false);
         }
 
-        public async Task<bool> CreateTable<T>() where T : DatabaseEntry, new() =>
+        public async Task<bool> CreateTable<T>()
+            where T : DatabaseEntry, new() =>
             await CreateTable(new T())
                 .ConfigureAwait(false);
 
-        public async Task<bool> CreateTable(DatabaseEntry instance) 
+        public async Task<bool> CreateTable(DatabaseEntry instance)
         {
             var sql = TableSqlBuilder
                 .Create(
-                    Schema.TypeMap, 
-                    Schema.ColumnMap.TryGetValue(instance.GetType(), out var colSet) 
+                    Schema.TypeMap,
+                    Schema.ColumnMap.TryGetValue(instance.GetType(),
+                        out var colSet)
                         ? colSet
-                        : null, 
+                        : null,
                     instance,
                     quoteColumnNames: QuoteColumnNames)
                 .WithForeignKeys()
@@ -169,8 +197,8 @@ namespace rDB
             return await Execute(sql).ConfigureAwait(false) > 0;
         }
 
-        public async Task<int> CreateTables(params DatabaseEntry[] entries) => 
-            await CreateTables((IEnumerable<DatabaseEntry>) entries)
+        public async Task<int> CreateTables(params DatabaseEntry[] entries) =>
+            await CreateTables((IEnumerable<DatabaseEntry>)entries)
                 .ConfigureAwait(false);
 
         public async Task<int> CreateTables(IEnumerable<DatabaseEntry> entries)
@@ -181,7 +209,7 @@ namespace rDB
                 if (await CreateTable(entry).ConfigureAwait(false))
                     state++;
             }
-            
+
             return state;
         }
 
@@ -223,7 +251,7 @@ namespace rDB
 
             public bool Get()
             {
-                lock(this)
+                lock (this)
                     return _state;
             }
         }

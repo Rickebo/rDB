@@ -22,6 +22,8 @@ namespace rDB.Builder
         protected TDatabase Database;
         protected bool CreateTables = true;
         protected TypeMap TypeMap;
+        protected bool DropTables = false;
+        protected bool DropTablesCascade = false;
 
         protected Dictionary<Type, DatabaseEntry> TableMap =
             new Dictionary<Type, DatabaseEntry>();
@@ -32,6 +34,14 @@ namespace rDB.Builder
         public DatabaseBuilder(TDatabase database)
         {
             Database = database;
+        }
+
+        public DatabaseBuilder<TDatabase, TConnection> WithDropTables(bool cascade = false)
+        {
+            DropTables = true;
+            DropTablesCascade = true;
+
+            return this;
         }
 
         public DatabaseBuilder()
@@ -117,6 +127,21 @@ namespace rDB.Builder
 
             Database.Configure(TypeMap,
                 ImmutableDictionary.CreateRange(_tables));
+
+            if (DropTables)
+            {
+                var tables = GetTablesInCreationOrder()
+                    .Reverse()
+                    .ToArray();
+
+                foreach (var table in tables)
+                {
+                    await Database.DropTable(
+                        table.GetType(),
+                        DropTablesCascade ? " CASCADE" : ""
+                    );
+                }
+            }
 
             if (CreateTables)
                 await CreateAllTables();
