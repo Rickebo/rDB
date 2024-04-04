@@ -1,25 +1,24 @@
 ﻿using rDB.Attributes;
 
-using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace rDB
 {
     public class DatabaseColumnContext
     {
-        public string Name { get; }
-        public DatabaseColumnAttribute Column { get; }
-
-        public DatabaseColumnContext(string name, DatabaseColumnAttribute column)
+        public DatabaseColumnContext(
+            string name,
+            DatabaseColumnAttribute column
+        )
         {
             Name = name;
             Column = column;
         }
 
+        public string Name { get; }
+        public DatabaseColumnAttribute Column { get; }
+
         public string GenerateSql(bool quoteColumnName = true)
         {
-            var sql = quoteColumnName 
+            var sql = quoteColumnName
                 ? $"\"{Name}\" {Column.Type}"
                 : $"{Name} {Column.Type}";
 

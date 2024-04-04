@@ -1,23 +1,27 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Text;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using rDB.Attributes;
-using System.Runtime.CompilerServices;
-using System.Collections.Immutable;
-
-using ColumnSet = System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>;
-using ColumnMap = System.Collections.Immutable.ImmutableDictionary<System.Type, System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
-using TypeMap = System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
-using System.Collections.Concurrent;
+using ColumnSet =
+    System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>;
+using ColumnMap =
+    System.Collections.Immutable.ImmutableDictionary<System.Type, System.
+        Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
+using TypeMap =
+    System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
 
 namespace rDB
 {
     public abstract class DatabaseEntry
     {
-        private static readonly ConcurrentDictionary<ColumnKey, WeakReference<PropertyInfo>> PropertyCache = new ConcurrentDictionary<ColumnKey, WeakReference<PropertyInfo>>();
+        private static readonly
+            ConcurrentDictionary<ColumnKey, WeakReference<PropertyInfo>>
+            PropertyCache =
+                new ConcurrentDictionary<ColumnKey,
+                    WeakReference<PropertyInfo>>();
 
         internal static TypeMap BuildTypeMap()
         {
@@ -26,57 +30,68 @@ namespace rDB
             var referencingAssemblies = AppDomain.CurrentDomain.GetAssemblies()
                 .Where(assembly => assembly != null && assembly
                     .GetReferencedAssemblies()
-                    .Any(referencedAssembly => AssemblyName.ReferenceMatchesDefinition(referencedAssembly, executingAssemblyName)));
+                    .Any(referencedAssembly =>
+                        AssemblyName.ReferenceMatchesDefinition(
+                            referencedAssembly, executingAssemblyName)));
 
-            var allTypes = referencingAssemblies.SelectMany(assembly => assembly.GetTypes()
-                    .Where(type => 
-                        typeof(DatabaseEntry).IsAssignableFrom(type) &&
-                        !type.IsAbstract &&
-                        type.IsClass
-                        ));
+            var allTypes = referencingAssemblies.SelectMany(assembly => assembly
+                .GetTypes()
+                .Where(type =>
+                    typeof(DatabaseEntry).IsAssignableFrom(type) &&
+                    !type.IsAbstract &&
+                    type.IsClass
+                ));
 
-            var resultBuilder = ImmutableDictionary.CreateBuilder<Type, string>();
+            var resultBuilder =
+                ImmutableDictionary.CreateBuilder<Type, string>();
             foreach (var type in allTypes)
             {
-                var attribute = ReflectionExtensions.GetAttribute<DatabaseTableAttribute>(type);
+                var attribute = type.GetAttribute<DatabaseTableAttribute>();
                 resultBuilder.Add(type, attribute?.Name ?? type.Name);
             }
 
             return resultBuilder.ToImmutable();
         }
 
-        protected internal static ColumnSet GetColumns<T>() where T : DatabaseEntry => 
-            GetColumns(typeof(T));
-
-        protected internal static ColumnSet GetColumns(Type type) 
+        protected internal static ColumnSet GetColumns<T>()
+            where T : DatabaseEntry
         {
-            var cols = ReflectionExtensions.GetAttributes<DatabaseColumnAttribute>(type);
+            return GetColumns(typeof(T));
+        }
+
+        protected internal static ColumnSet GetColumns(Type type)
+        {
+            var cols = type.GetAttributes<DatabaseColumnAttribute>();
 
             var columns = ImmutableHashSet.CreateRange(cols
-                .Select(col => new DatabaseColumnContext(col.Key.Name, col.Value)));
+                .Select(col =>
+                    new DatabaseColumnContext(col.Key.Name, col.Value)));
 
             return columns;
         }
 
         public virtual void FillColumns(ColumnSet columns)
         {
-            var type = this.GetType();
+            var type = GetType();
             var properties = type.GetProperties();
 
             foreach (var property in properties)
             {
-                var attribute = property.GetCustomAttribute<DatabaseColumnAttribute>();
+                var attribute =
+                    property.GetCustomAttribute<DatabaseColumnAttribute>();
 
                 if (attribute == null)
                     continue;
 
-                columns.Add(new DatabaseColumnContext(property.Name, attribute));
+                columns.Add(
+                    new DatabaseColumnContext(property.Name, attribute));
             }
         }
 
-        public virtual Dictionary<ForeignKeyAttribute, ISet<string>> GetForeignKeys()
+        public virtual Dictionary<ForeignKeyAttribute, ISet<string>>
+            GetForeignKeys()
         {
-            var attributes = ReflectionExtensions.GetAttributes<ForeignKeyAttribute>(GetType());
+            var attributes = GetType().GetAttributes<ForeignKeyAttribute>();
             var dict = new Dictionary<ForeignKeyAttribute, ISet<string>>();
 
             foreach (var entry in attributes)
@@ -95,7 +110,7 @@ namespace rDB
 
         public virtual Dictionary<IndexAttribute, ISet<string>> GetIndices()
         {
-            var attributes = ReflectionExtensions.GetAttributes<IndexAttribute>(GetType());
+            var attributes = GetType().GetAttributes<IndexAttribute>();
             var dict = new Dictionary<IndexAttribute, ISet<string>>();
 
             foreach (var entry in attributes)
@@ -112,10 +127,18 @@ namespace rDB
             return dict;
         }
 
-        public virtual void Save(IEnumerable<DatabaseColumnContext> columns, Action<string, object> saver) =>
+        public virtual void Save(
+            IEnumerable<DatabaseColumnContext> columns,
+            Action<string, object> saver
+        )
+        {
             Save(columns.Select(col => col.Name), saver);
+        }
 
-        public virtual void Save(IEnumerable<string> columns, Action<string, object> saver)
+        public virtual void Save(
+            IEnumerable<string> columns,
+            Action<string, object> saver
+        )
         {
             foreach (var column in columns)
                 saver(column, Get(column));
@@ -123,10 +146,11 @@ namespace rDB
 
         public virtual object Get(string column)
         {
-            var type = this.GetType();
+            var type = GetType();
             var key = new ColumnKey(type, column);
 
-            var property = PropertyCache.TryGetValue(key, out var reference) && reference.TryGetTarget(out var referenceTarget)
+            var property = PropertyCache.TryGetValue(key, out var reference) &&
+                           reference.TryGetTarget(out var referenceTarget)
                 ? referenceTarget
                 : null;
 
@@ -134,10 +158,12 @@ namespace rDB
             property ??= type.GetProperty(column);
 
             if (property == null)
-                throw new InvalidOperationException("Cannot get non existing column.");
+                throw new InvalidOperationException(
+                    "Cannot get non existing column.");
 
             if (!isCached)
-                PropertyCache.TryAdd(key, new WeakReference<PropertyInfo>(property));
+                PropertyCache.TryAdd(key,
+                    new WeakReference<PropertyInfo>(property));
 
             return property.GetValue(this);
         }
@@ -153,13 +179,18 @@ namespace rDB
                 Table = type;
             }
 
-            public override bool Equals(object obj) => 
-                obj is ColumnKey key &&
-                    ColumnName.Equals(key.ColumnName) &&
-                    Table == key.Table;
+            public override bool Equals(object obj)
+            {
+                return obj is ColumnKey key &&
+                       ColumnName.Equals(key.ColumnName) &&
+                       Table == key.Table;
+            }
 
-            public override int GetHashCode() =>
-                HashCode.Combine(Table.GetHashCode(), ColumnName.GetHashCode());
+            public override int GetHashCode()
+            {
+                return HashCode.Combine(Table.GetHashCode(),
+                    ColumnName.GetHashCode());
+            }
         }
     }
 }

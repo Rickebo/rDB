@@ -1,12 +1,15 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace rDB.Attributes
 {
     [AttributeUsage(AttributeTargets.Property)]
     public class DatabaseColumnAttribute : Attribute
     {
+        public DatabaseColumnAttribute(string type)
+        {
+            Type = type;
+        }
+
         public string Type { get; }
 
         public bool IsInserted { get; set; } = true;
@@ -17,12 +20,5 @@ namespace rDB.Attributes
         public string Default { get; set; } = null;
 
         public bool NotNull { get; set; } = false;
-
-
-
-        public DatabaseColumnAttribute(string type)
-        {
-            Type = type;
-        }
     }
 }

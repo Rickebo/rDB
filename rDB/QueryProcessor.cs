@@ -1,25 +1,23 @@
-﻿using rDB.Builder;
-
-using SqlKata;
-
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Linq.Expressions;
-using System.Text;
+using rDB.Builder;
+using SqlKata;
 
 namespace rDB
 {
     public struct QueryProcessor
     {
-        public IEnumerable<Func<Query, Query>> Processors { get; private set; }
+        public IEnumerable<Func<Query, Query>> Processors { get; }
 
         public QueryProcessor(params Func<Query, Query>[] processors)
         {
             Processors = processors;
         }
 
-        public static QueryProcessorBuilder Builder() => new QueryProcessorBuilder();
+        public static QueryProcessorBuilder Builder()
+        {
+            return new QueryProcessorBuilder();
+        }
 
         public Query Process(Query query)
         {
@@ -35,15 +33,29 @@ namespace rDB
             {
                 var processor = this;
                 return query => processor.Process(query);
-            } 
+            }
         }
 
-        public static QueryProcessor operator +(QueryProcessor a, QueryProcessor b) => new QueryProcessor(a, b);
+        public static QueryProcessor operator +(
+            QueryProcessor a,
+            QueryProcessor b
+        )
+        {
+            return new QueryProcessor(a, b);
+        }
 
-        public static implicit operator Func<Query, Query>(QueryProcessor processor) => 
-            query => processor.Process(query);
+        public static implicit operator Func<Query, Query>(
+            QueryProcessor processor
+        )
+        {
+            return query => processor.Process(query);
+        }
 
-        public static implicit operator QueryProcessor(Func<Query, Query> processor) => 
-            new QueryProcessor(processor);
+        public static implicit operator QueryProcessor(
+            Func<Query, Query> processor
+        )
+        {
+            return new QueryProcessor(processor);
+        }
     }
 }

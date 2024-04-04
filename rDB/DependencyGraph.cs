@@ -1,17 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 namespace rDB
 {
     public class DependencyGraph<T>
     {
-        private Dictionary<T, HashSet<T>> _tree = new Dictionary<T, HashSet<T>>();
+        private readonly Dictionary<T, HashSet<T>> _tree =
+            new Dictionary<T, HashSet<T>>();
 
         public DependencyGraph()
         {
-
         }
 
         private DependencyGraph(Dictionary<T, HashSet<T>> dict)
@@ -20,22 +19,27 @@ namespace rDB
                 _tree.Add(entry.Key, new HashSet<T>(entry.Value));
         }
 
-        public void Add(T entry, IEnumerable<T> dependencies) => 
+        public void Add(T entry, IEnumerable<T> dependencies)
+        {
             _tree.Add(entry, dependencies.ToHashSet());
+        }
 
         /// <summary>
-        /// Iterates over the entries in the dependency graph. The iteration is done in order,
-        /// so that entries that have no dependencies are returned first
+        ///     Iterates over the entries in the dependency graph. The iteration is done in
+        ///     order,
+        ///     so that entries that have no dependencies are returned first
         /// </summary>
         /// <returns></returns>
-        public IEnumerable<T> Solve() => 
-            new DependencyGraph<T>(_tree).SolveDestructive();
+        public IEnumerable<T> Solve()
+        {
+            return new DependencyGraph<T>(_tree).SolveDestructive();
+        }
 
         /// <summary>
-        /// Iterates over the entries in the dependency graph. The iteration is done in order,
-        /// so that entries that have no dependencies are returned first
-        /// 
-        /// The graph will no longer be empty after this method has finished executing.
+        ///     Iterates over the entries in the dependency graph. The iteration is done in
+        ///     order,
+        ///     so that entries that have no dependencies are returned first
+        ///     The graph will no longer be empty after this method has finished executing.
         /// </summary>
         /// <returns></returns>
         public IEnumerable<T> SolveDestructive()
@@ -71,7 +75,8 @@ namespace rDB
                 return true;
             }
 
-            throw new Exception("Could not find solution to dependencies. Verify that there are no circular dependencies and that " +
+            throw new Exception(
+                "Could not find solution to dependencies. Verify that there are no circular dependencies and that " +
                 "there are no dependencies that are not included.");
         }
 

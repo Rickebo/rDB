@@ -1,14 +1,12 @@
-﻿using SqlKata;
-using SqlKata.Compilers;
-using SqlKata.Execution;
-
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Data;
 using System.Data.Common;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-
+using SqlKata;
+using SqlKata.Execution;
 using ColumnSet =
     System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>;
 using ColumnMap =
@@ -17,9 +15,6 @@ using ColumnMap =
 using TypeMap =
     System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
 
-using System.Collections.Immutable;
-using System.Data;
-
 namespace rDB
 {
     public class TableConnectionContext<TTable, TConnection>
@@ -27,16 +22,6 @@ namespace rDB
         where TConnection : DbConnection
         where TTable : DatabaseEntry
     {
-        private BaseConnectionContext<TConnection> ConnectionContext { get; }
-        public string TableName { get; }
-        public IImmutableSet<DatabaseColumnContext> Columns { get; }
-
-        public override SchemaContext Schema => ConnectionContext.Schema;
-
-        public override TConnection Connection => ConnectionContext.Connection;
-
-        public override QueryFactory Factory => ConnectionContext.Factory;
-
         public TableConnectionContext(
             BaseConnectionContext<TConnection> connectionContext
         )
@@ -47,14 +32,39 @@ namespace rDB
             Columns = connectionContext.Schema.ColumnMap[typeof(TTable)];
         }
 
-        public Query Query() => Query<TTable>();
+        private BaseConnectionContext<TConnection> ConnectionContext { get; }
+        public string TableName { get; }
+        public IImmutableSet<DatabaseColumnContext> Columns { get; }
+
+        public override SchemaContext Schema => ConnectionContext.Schema;
+
+        public override TConnection Connection => ConnectionContext.Connection;
+
+        public override QueryFactory Factory => ConnectionContext.Factory;
+
+        public async ValueTask DisposeAsync()
+        {
+            await ConnectionContext.DisposeAsync();
+        }
+
+        public void Dispose()
+        {
+            ConnectionContext.Dispose();
+        }
+
+        public Query Query()
+        {
+            return Query<TTable>();
+        }
 
         public async Task<TTable> SelectOrInsert(
             Func<Query, Query> reader,
             Func<TTable> itemCreator
-        ) =>
-            await SelectOrInsert<TTable>(reader, itemCreator)
+        )
+        {
+            return await SelectOrInsert<TTable>(reader, itemCreator)
                 .ConfigureAwait(false);
+        }
 
         public async Task<int> Insert(
             TTable entry,
@@ -64,9 +74,9 @@ namespace rDB
         )
         {
             await using var command = Connection.CreateCommand();
-            var allColumns = 
+            var allColumns =
                 Schema.ColumnMap[typeof(TTable)]?
-                .Where(col => col.Column.IsInserted);
+                    .Where(col => col.Column.IsInserted);
 
             var columns = columnSelector != null
                 ? allColumns.Where(col => columnSelector(col))
@@ -85,56 +95,63 @@ namespace rDB
                 ? await Query<TTable>()
                     .InsertGetIdAsync<int>(
                         columnValues,
-                        transaction: transaction
+                        transaction
                     )
                     .ConfigureAwait(false)
                 : await Query<TTable>()
-                    .InsertAsync(columnValues, transaction: transaction)
+                    .InsertAsync(columnValues, transaction)
                     .ConfigureAwait(false);
         }
 
         public async Task<int> Insert(
             IEnumerable<TTable> entries,
             IDbTransaction transaction = null
-        ) =>
-            await Query().InsertAsync(entries, transaction: transaction);
+        )
+        {
+            return await Query().InsertAsync(entries, transaction);
+        }
 
         public async Task<int> UpdateWhere(
             Func<Query, Query> queryProcessor,
             TTable entry
-        ) =>
-            await queryProcessor(Query())
+        )
+        {
+            return await queryProcessor(Query())
                 .UpdateAsync(entry)
                 .ConfigureAwait(false);
+        }
 
-#region Select
-
-        public async Task<TTable> SelectFirst(Func<Query, Query> processor) =>
-            await SelectFirst<TTable, TTable>(processor)
+        public async Task<int> Delete(Func<Query, Query> processor)
+        {
+            return await processor(Query())
+                .DeleteAsync()
                 .ConfigureAwait(false);
+        }
+
+        #region Select
+
+        public async Task<TTable> SelectFirst(Func<Query, Query> processor)
+        {
+            return await SelectFirst<TTable, TTable>(processor)
+                .ConfigureAwait(false);
+        }
 
         public async Task<TTable> SelectFirstOrDefault(
             Func<Query, Query> processor
-        ) =>
-            await SelectFirstOrDefault<TTable, TTable>(processor)
+        )
+        {
+            return await SelectFirstOrDefault<TTable, TTable>(processor)
                 .ConfigureAwait(false);
+        }
 
         public async Task<IEnumerable<TTable>> Select(
             Func<Query, Query> processor
-        ) =>
-            await Select<TTable, TTable>(processor)
+        )
+        {
+            return await Select<TTable, TTable>(processor)
                 .ConfigureAwait(false);
+        }
 
-#endregion
-
-        public async Task<int> Delete(Func<Query, Query> processor) =>
-            await processor(Query())
-                .DeleteAsync()
-                .ConfigureAwait(false);
-
-        public void Dispose() => ConnectionContext.Dispose();
-
-        public async ValueTask DisposeAsync() =>
-            await ConnectionContext.DisposeAsync();
+        #endregion
     }
 }

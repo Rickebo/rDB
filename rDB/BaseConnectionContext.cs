@@ -1,26 +1,18 @@
-﻿using Serilog;
-using Serilog.Core;
-
-using SqlKata;
-using SqlKata.Execution;
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Linq;
-using System.Text;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
-
 using Dapper;
-
+using SqlKata;
 using SqlKata.Compilers;
+using SqlKata.Execution;
 
 namespace rDB
 {
-    using System.Runtime.CompilerServices;
-    using System.Threading;
-
     public abstract class BaseConnectionContext<TConnection>
         : IDisposable, IAsyncDisposable
         where TConnection : DbConnection
@@ -31,18 +23,22 @@ namespace rDB
 
         public virtual TableConnectionContext<TTable, TConnection>
             Table<TTable>()
-            where TTable : DatabaseEntry =>
-            Table<TableConnectionContext<TTable, TConnection>, TTable>(
+            where TTable : DatabaseEntry
+        {
+            return Table<TableConnectionContext<TTable, TConnection>, TTable>(
                 context =>
                     new TableConnectionContext<TTable, TConnection>(context)
             );
+        }
 
         protected virtual TContext Table<TContext, TTable>(
             Func<BaseConnectionContext<TConnection>, TContext> constructor
         )
             where TContext : TableConnectionContext<TTable, TConnection>
-            where TTable : DatabaseEntry =>
-            constructor(this);
+            where TTable : DatabaseEntry
+        {
+            return constructor(this);
+        }
 
         public virtual async Task<TTable> SelectOrInsert<TTable>(
             Func<Query, Query> reader,
@@ -54,7 +50,7 @@ namespace rDB
         {
             var result = await reader(Query<TTable>())
                 .FirstOrDefaultAsync<TTable>(
-                    transaction: transaction,
+                    transaction,
                     cancellationToken: cancellationToken
                 )
                 .ConfigureAwait(false);
@@ -67,7 +63,7 @@ namespace rDB
 
             return await reader(Query<TTable>())
                 .FirstOrDefaultAsync<TTable>(
-                    transaction: transaction,
+                    transaction,
                     cancellationToken: cancellationToken
                 )
                 .ConfigureAwait(false);
@@ -83,7 +79,7 @@ namespace rDB
         {
             var result = await reader(Query<TTable>())
                 .FirstOrDefaultAsync<TSelect>(
-                    transaction: transaction,
+                    transaction,
                     cancellationToken: cancellationToken
                 )
                 .ConfigureAwait(false);
@@ -100,14 +96,16 @@ namespace rDB
 
             return await reader(Query<TTable>())
                 .FirstOrDefaultAsync<TSelect>(
-                    transaction: transaction,
+                    transaction,
                     cancellationToken: cancellationToken
                 )
                 .ConfigureAwait(false);
         }
 
-        public string TableName<TTable>() where TTable : DatabaseEntry =>
-            Schema.TableName<TTable>();
+        public string TableName<TTable>() where TTable : DatabaseEntry
+        {
+            return Schema.TableName<TTable>();
+        }
 
         public async Task<int> Insert<TTable>(
             TTable entry,
@@ -117,18 +115,20 @@ namespace rDB
             bool ignoreConflict = false,
             CancellationToken cancellationToken = default
         )
-            where TTable : DatabaseEntry =>
-            await Insert(
-                    entry: entry,
-                    columnSelector: columnSelector,
-                    returnInsertedId: returnInsertedId,
-                    transaction: transaction,
+            where TTable : DatabaseEntry
+        {
+            return await Insert(
+                    entry,
+                    columnSelector,
+                    returnInsertedId,
+                    transaction,
                     ignoreConflict: ignoreConflict,
                     idConverter: Convert.ToInt32,
                     nonIdConverter: i => i,
                     cancellationToken: cancellationToken
                 )
                 .ConfigureAwait(false);
+        }
 
         public async Task<long> InsertLong<TTable>(
             TTable entry,
@@ -138,18 +138,20 @@ namespace rDB
             bool ignoreConflict = false,
             CancellationToken cancellationToken = default
         )
-            where TTable : DatabaseEntry =>
-            await Insert<TTable, long>(
-                    entry: entry,
-                    columnSelector: columnSelector,
-                    returnInsertedId: returnInsertedId,
-                    transaction: transaction,
+            where TTable : DatabaseEntry
+        {
+            return await Insert(
+                    entry,
+                    columnSelector,
+                    returnInsertedId,
+                    transaction,
                     ignoreConflict: ignoreConflict,
                     idConverter: Convert.ToInt64,
                     nonIdConverter: i => i,
                     cancellationToken: cancellationToken
                 )
                 .ConfigureAwait(false);
+        }
 
         public virtual async Task<TId> Insert<TTable, TId>(
             TTable entry,
@@ -212,10 +214,10 @@ namespace rDB
                 }
 
             var commandDefinition = new CommandDefinition(
-                commandText: commandText,
-                parameters: compiled.NamedBindings,
-                transaction: transaction,
-                commandTimeout: Factory.QueryTimeout,
+                commandText,
+                compiled.NamedBindings,
+                transaction,
+                Factory.QueryTimeout,
                 cancellationToken: cancellationToken
             );
 
@@ -241,21 +243,23 @@ namespace rDB
             IDbTransaction transaction = null,
             CancellationToken cancellationToken = default
         )
-            where TTable : DatabaseEntry =>
-            await queryProcessor(Query<TTable>().SelectRaw("1").Limit(1))
-                .CountAsync<int>(
-                    transaction: transaction,
-                    cancellationToken: cancellationToken
-                )
-                .ConfigureAwait(false) >
-            0;
+            where TTable : DatabaseEntry
+        {
+            return await queryProcessor(Query<TTable>().SelectRaw("1").Limit(1))
+                       .CountAsync<int>(
+                           transaction: transaction,
+                           cancellationToken: cancellationToken
+                       )
+                       .ConfigureAwait(false) >
+                   0;
+        }
 
-        public Query Query<TTable>() where TTable : DatabaseEntry =>
-            Factory.Query(Schema.TableName<TTable>());
+        public Query Query<TTable>() where TTable : DatabaseEntry
+        {
+            return Factory.Query(Schema.TableName<TTable>());
+        }
 
-        public async Task<T> Query<T, TTable>(
-            Func<Query, Task<T>> selector
-        )
+        public async Task<T> Query<T, TTable>(Func<Query, Task<T>> selector)
             where TTable : DatabaseEntry
         {
             var query = Factory.Query(Schema.TableName<TTable>());
@@ -280,68 +284,80 @@ namespace rDB
             bool cite = false,
             bool citeLeft = false,
             bool citeRight = false
-        ) where TTable : DatabaseEntry =>
-            Cite(TableName<TTable>(), cite || citeLeft) +
-            "." +
-            Cite(columnName, cite || citeRight);
+        ) where TTable : DatabaseEntry
+        {
+            return Cite(TableName<TTable>(), cite || citeLeft) +
+                   "." +
+                   Cite(columnName, cite || citeRight);
+        }
 
-        private static string Cite(string text, bool cite) =>
-            cite
+        private static string Cite(string text, bool cite)
+        {
+            return cite
                 ? "\"" + text + "\""
                 : text;
+        }
 
-#region Select generic
+        #region Select generic
 
         public virtual async Task<TTable> SelectFirst<TTable>(
             Func<Query, Query> processor,
             IDbTransaction transaction = null,
             CancellationToken cancellationToken = default
         )
-            where TTable : DatabaseEntry =>
-            await SelectFirst<TTable, TTable>(
+            where TTable : DatabaseEntry
+        {
+            return await SelectFirst<TTable, TTable>(
                     processor,
-                    transaction: transaction,
-                    cancellationToken: cancellationToken
+                    transaction,
+                    cancellationToken
                 )
                 .ConfigureAwait(false);
+        }
 
         public virtual async Task<T> SelectFirst<T, TTable>(
             Func<Query, Query> processor,
             IDbTransaction transaction = null,
             CancellationToken cancellationToken = default
         )
-            where TTable : DatabaseEntry =>
-            await processor(Query<TTable>())
+            where TTable : DatabaseEntry
+        {
+            return await processor(Query<TTable>())
                 .FirstAsync<T>(
-                    transaction: transaction,
+                    transaction,
                     cancellationToken: cancellationToken
                 )
                 .ConfigureAwait(false);
+        }
 
         public virtual async Task<TTable> SelectFirstOrDefault<TTable>(
             Func<Query, Query> processor,
             IDbTransaction transaction = null,
             CancellationToken cancellationToken = default
         )
-            where TTable : DatabaseEntry =>
-            await SelectFirstOrDefault<TTable, TTable>(
+            where TTable : DatabaseEntry
+        {
+            return await SelectFirstOrDefault<TTable, TTable>(
                     processor,
-                    transaction: transaction
+                    transaction
                 )
                 .ConfigureAwait(false);
+        }
 
         public virtual async Task<T> SelectFirstOrDefault<T, TTable>(
             Func<Query, Query> processor,
             IDbTransaction transaction = null,
             CancellationToken cancellationToken = default
         )
-            where TTable : DatabaseEntry =>
-            await processor(Query<TTable>())
+            where TTable : DatabaseEntry
+        {
+            return await processor(Query<TTable>())
                 .FirstOrDefaultAsync<T>(
-                    transaction: transaction,
+                    transaction,
                     cancellationToken: cancellationToken
                 )
                 .ConfigureAwait(false);
+        }
 
 
         public virtual async Task<IEnumerable<TTable>> Select<TTable>(
@@ -349,26 +365,30 @@ namespace rDB
             IDbTransaction transaction = null,
             CancellationToken cancellationToken = default
         )
-            where TTable : DatabaseEntry =>
-            await Select<TTable, TTable>(
+            where TTable : DatabaseEntry
+        {
+            return await Select<TTable, TTable>(
                     processor,
-                    transaction: transaction,
-                    cancellationToken: cancellationToken
+                    transaction,
+                    cancellationToken
                 )
                 .ConfigureAwait(false);
+        }
 
         public virtual async Task<IEnumerable<T>> Select<T, TTable>(
             Func<Query, Query> processor,
             IDbTransaction transaction = null,
             CancellationToken cancellationToken = default
         )
-            where TTable : DatabaseEntry =>
-            await processor(Query<TTable>())
+            where TTable : DatabaseEntry
+        {
+            return await processor(Query<TTable>())
                 .GetAsync<T>(
-                    transaction: transaction,
+                    transaction,
                     cancellationToken: cancellationToken
                 )
                 .ConfigureAwait(false);
+        }
 
         public virtual async IAsyncEnumerable<TTable> Paginate<TTable>(
             Func<Query, Query> processor,
@@ -379,13 +399,13 @@ namespace rDB
             CancellationToken cancellationToken = default
         ) where TTable : DatabaseEntry
         {
-            await foreach(var item in Paginate<TTable, TTable>(
-                processor,
-                page,
-                pageSize,
-                transaction,
-                cancellationToken
-            ))
+            await foreach (var item in Paginate<TTable, TTable>(
+                               processor,
+                               page,
+                               pageSize,
+                               transaction,
+                               cancellationToken
+                           ))
                 yield return item;
         }
 
@@ -421,15 +441,13 @@ namespace rDB
                 .PaginateAsync<T>(
                     page,
                     pageSize,
-                    transaction: transaction,
+                    transaction,
                     cancellationToken: cancellationToken
                 );
 
             foreach (var paginationPage in pagination.Each)
-            {
-                foreach (var item in paginationPage.List)
-                    yield return item;
-            }
+            foreach (var item in paginationPage.List)
+                yield return item;
         }
 
         public virtual async IAsyncEnumerable<T> Paginate<T, TTable>(
@@ -445,59 +463,63 @@ namespace rDB
                 .PaginateAsync<T>(
                     page,
                     pageSize,
-                    transaction: transaction,
+                    transaction,
                     cancellationToken: cancellationToken
                 );
 
             foreach (var paginationPage in pagination.Each)
-            {
-                foreach (var item in paginationPage.List)
-                    yield return item;
-            }
+            foreach (var item in paginationPage.List)
+                yield return item;
         }
 
-#endregion
+        #endregion
 
-#region Select reader
+        #region Select reader
 
         public virtual async Task<TTable> SelectFirstReader<TTable>(
             Func<Query, Query> processor,
             IDbTransaction transaction = null,
             CancellationToken cancellationToken = default
         )
-            where TTable : DatabaseEntry =>
-            await SelectFirst<TTable, TTable>(
+            where TTable : DatabaseEntry
+        {
+            return await SelectFirst<TTable, TTable>(
                     processor,
-                    transaction: transaction,
-                    cancellationToken: cancellationToken
+                    transaction,
+                    cancellationToken
                 )
                 .ConfigureAwait(false);
+        }
 
         public virtual async Task<T> SelectFirstReader<T, TTable>(
             Func<Query, Query> processor,
             IDbTransaction transaction = null,
             CancellationToken cancellationToken = default
         )
-            where TTable : DatabaseEntry =>
-            await processor(Query<TTable>())
+            where TTable : DatabaseEntry
+        {
+            return await processor(Query<TTable>())
                 .FirstAsync<T>(
-                    transaction: transaction,
+                    transaction,
                     cancellationToken: cancellationToken
                 )
                 .ConfigureAwait(false);
+        }
 
         public virtual async Task<TTable> SelectFirstOrDefaultReader<TTable>(
             Func<Query, Query> processor,
             IDbTransaction transaction = null,
             CancellationToken cancellationToken = default
         )
-            where TTable : DatabaseEntry =>
-            await SelectFirstOrDefault<TTable, TTable>(
+            where TTable : DatabaseEntry
+        {
+            return await SelectFirstOrDefault<TTable, TTable>(
                     processor,
-                    transaction: transaction,
-                    cancellationToken: cancellationToken
+                    transaction,
+                    cancellationToken
                 )
                 .ConfigureAwait(false);
+        }
 
         //public virtual async Task<DbDataReader> SelectFirstOrDefaultReader<TTable>(Func<Query, Query> processor)
         //    where TTable : DatabaseEntry =>
@@ -510,30 +532,34 @@ namespace rDB
             IDbTransaction transaction = null,
             CancellationToken cancellationToken = default
         )
-            where TTable : DatabaseEntry =>
-            await SelectReader<TTable, TTable>(
+            where TTable : DatabaseEntry
+        {
+            return await SelectReader<TTable, TTable>(
                     processor,
-                    transaction: transaction,
-                    cancellationToken: cancellationToken
+                    transaction,
+                    cancellationToken
                 )
                 .ConfigureAwait(false);
+        }
 
         public virtual async Task<IEnumerable<T>> SelectReader<T, TTable>(
             Func<Query, Query> processor,
             IDbTransaction transaction = null,
             CancellationToken cancellationToken = default
         )
-            where TTable : DatabaseEntry =>
-            await processor(Query<TTable>())
+            where TTable : DatabaseEntry
+        {
+            return await processor(Query<TTable>())
                 .GetAsync<T>(
-                    transaction: transaction,
+                    transaction,
                     cancellationToken: cancellationToken
                 )
                 .ConfigureAwait(false);
+        }
 
-#endregion
+        #endregion
 
-#region Disposable
+        #region Disposable
 
         public virtual void Dispose()
         {
@@ -547,6 +573,6 @@ namespace rDB
             await Connection.DisposeAsync();
         }
 
-#endregion
+        #endregion
     }
 }

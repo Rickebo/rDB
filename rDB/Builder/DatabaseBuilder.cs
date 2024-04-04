@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Data.Common;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using ColumnSet =
     System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>;
@@ -11,7 +11,6 @@ using ColumnMap =
         Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
 using TypeMap =
     System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
-using System.Collections.Immutable;
 
 namespace rDB.Builder
 {
@@ -19,33 +18,36 @@ namespace rDB.Builder
         where TDatabase : Database<TConnection>
         where TConnection : DbConnection
     {
-        protected TDatabase Database;
+        protected readonly List<KeyValuePair<Type, ColumnSet>> _tables =
+            new List<KeyValuePair<Type, ColumnSet>>();
+
         protected bool CreateTables = true;
-        protected TypeMap TypeMap;
-        protected bool DropTables = false;
-        protected bool DropTablesCascade = false;
+        protected TDatabase Database;
+        protected bool DropTables;
+        protected bool DropTablesCascade;
 
         protected Dictionary<Type, DatabaseEntry> TableMap =
             new Dictionary<Type, DatabaseEntry>();
 
-        protected readonly List<KeyValuePair<Type, ColumnSet>> _tables =
-            new List<KeyValuePair<Type, ColumnSet>>();
+        protected TypeMap TypeMap;
 
         public DatabaseBuilder(TDatabase database)
         {
             Database = database;
         }
 
-        public DatabaseBuilder<TDatabase, TConnection> WithDropTables(bool cascade = false)
+        public DatabaseBuilder()
+        {
+        }
+
+        public DatabaseBuilder<TDatabase, TConnection> WithDropTables(
+            bool cascade = false
+        )
         {
             DropTables = true;
             DropTablesCascade = true;
 
             return this;
-        }
-
-        public DatabaseBuilder()
-        {
         }
 
         public DatabaseBuilder<TDatabase, TConnection> WithDatabase(
@@ -92,8 +94,8 @@ namespace rDB.Builder
                 TableMap.Add(type, table);
                 _tables.Add(
                     new KeyValuePair<Type,
-                        IImmutableSet<DatabaseColumnContext>>(type,
-                        (IImmutableSet<DatabaseColumnContext>)DatabaseEntry
+                        ColumnSet>(type,
+                        DatabaseEntry
                             .GetColumns(type)));
             }
 
@@ -135,12 +137,10 @@ namespace rDB.Builder
                     .ToArray();
 
                 foreach (var table in tables)
-                {
                     await Database.DropTable(
                         table.GetType(),
                         DropTablesCascade ? " CASCADE" : ""
                     );
-                }
             }
 
             if (CreateTables)
