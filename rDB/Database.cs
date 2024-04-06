@@ -7,13 +7,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using SqlKata;
 using SqlKata.Compilers;
-using ColumnSet =
-    System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>;
+using ColumnSet = System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>;
 using ColumnMap =
-    System.Collections.Immutable.IImmutableDictionary<System.Type, System.
-        Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>>;
-using TypeMap =
-    System.Collections.Immutable.IImmutableDictionary<System.Type, string>;
+    System.Collections.Immutable.IImmutableDictionary<System.Type, System.Collections.
+        Immutable.IImmutableSet<rDB.DatabaseColumnContext>>;
+using TypeMap = System.Collections.Immutable.IImmutableDictionary<System.Type, string>;
 
 namespace rDB
 {

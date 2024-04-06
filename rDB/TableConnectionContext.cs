@@ -10,10 +10,9 @@ using SqlKata.Execution;
 using ColumnSet =
     System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>;
 using ColumnMap =
-    System.Collections.Immutable.ImmutableDictionary<System.Type, System.
-        Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
-using TypeMap =
-    System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
+    System.Collections.Immutable.ImmutableDictionary<System.Type, System.Collections.
+        Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
+using TypeMap = System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
 
 namespace rDB
 {
@@ -136,17 +135,13 @@ namespace rDB
                 .ConfigureAwait(false);
         }
 
-        public async Task<TTable> SelectFirstOrDefault(
-            Func<Query, Query> processor
-        )
+        public async Task<TTable> SelectFirstOrDefault(Func<Query, Query> processor)
         {
             return await SelectFirstOrDefault<TTable, TTable>(processor)
                 .ConfigureAwait(false);
         }
 
-        public async Task<IEnumerable<TTable>> Select(
-            Func<Query, Query> processor
-        )
+        public async Task<IEnumerable<TTable>> Select(Func<Query, Query> processor)
         {
             return await Select<TTable, TTable>(processor)
                 .ConfigureAwait(false);

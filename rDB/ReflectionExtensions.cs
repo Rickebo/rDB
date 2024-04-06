@@ -18,9 +18,8 @@ namespace rDB
             return typeof(T2).GetAttributes<T>();
         }
 
-        internal static Dictionary<PropertyInfo, T> GetAttributes<T>(
-            this Type type
-        ) where T : Attribute
+        internal static Dictionary<PropertyInfo, T> GetAttributes<T>(this Type type)
+            where T : Attribute
         {
             var properties = type.GetProperties();
             var attributes = new Dictionary<PropertyInfo, T>();

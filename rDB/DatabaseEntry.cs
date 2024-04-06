@@ -8,10 +8,9 @@ using rDB.Attributes;
 using ColumnSet =
     System.Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>;
 using ColumnMap =
-    System.Collections.Immutable.ImmutableDictionary<System.Type, System.
-        Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
-using TypeMap =
-    System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
+    System.Collections.Immutable.ImmutableDictionary<System.Type, System.Collections.
+        Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
+using TypeMap = System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
 
 namespace rDB
 {

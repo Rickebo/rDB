@@ -4,13 +4,11 @@ using System.Collections.Immutable;
 using System.Data.Common;
 using System.Linq;
 using System.Threading.Tasks;
-using ColumnSet =
-    System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>;
+using ColumnSet = System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>;
 using ColumnMap =
-    System.Collections.Immutable.ImmutableDictionary<System.Type, System.
-        Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
-using TypeMap =
-    System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
+    System.Collections.Immutable.ImmutableDictionary<System.Type, System.Collections.
+        Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
+using TypeMap = System.Collections.Immutable.ImmutableDictionary<System.Type, string>;
 
 namespace rDB.Builder
 {
@@ -50,17 +48,13 @@ namespace rDB.Builder
             return this;
         }
 
-        public DatabaseBuilder<TDatabase, TConnection> WithDatabase(
-            TDatabase database
-        )
+        public DatabaseBuilder<TDatabase, TConnection> WithDatabase(TDatabase database)
         {
             Database = database;
             return this;
         }
 
-        public DatabaseBuilder<TDatabase, TConnection> WithCreateTables(
-            bool state
-        )
+        public DatabaseBuilder<TDatabase, TConnection> WithCreateTables(bool state)
         {
             CreateTables = state;
             return this;

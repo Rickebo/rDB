@@ -3,13 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using rDB.Attributes;
-using ColumnSet =
-    System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>;
+using ColumnSet = System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>;
 using ColumnMap =
-    System.Collections.Immutable.IImmutableDictionary<System.Type, System.
-        Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>>;
-using TypeMap =
-    System.Collections.Immutable.IImmutableDictionary<System.Type, string>;
+    System.Collections.Immutable.IImmutableDictionary<System.Type, System.Collections.
+        Immutable.IImmutableSet<rDB.DatabaseColumnContext>>;
+using TypeMap = System.Collections.Immutable.IImmutableDictionary<System.Type, string>;
 
 namespace rDB
 {

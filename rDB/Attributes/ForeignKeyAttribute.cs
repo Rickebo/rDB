@@ -16,10 +16,18 @@ namespace rDB.Attributes
             NoAction,
             SetDefault
         }
+        
+        public enum DeferrableOption
+        {
+            NotDeferrable,
+            InitiallyDeferred,
+            InitiallyImmediate
+        }
 
         public ForeignKeyAttribute(
             [NotNull] Type table,
-            [NotNull] params string[] columns
+            [NotNull]
+            params string[] columns
         )
         {
             if (columns == null || columns.Length < 1)
@@ -41,10 +49,14 @@ namespace rDB.Attributes
 
         public ReferenceOption OnUpdate { get; set; } =
             ReferenceOption.Restrict;
+        
+        public DeferrableOption Deferrable { get; set; } =
+            DeferrableOption.NotDeferrable;
 
         public string GenerateSql(
             [NotNull] string table,
-            [NotNull] IEnumerable<string> columns,
+            [NotNull]
+            IEnumerable<string> columns,
             bool quoteColumns = true
         )
         {
@@ -63,7 +75,8 @@ namespace rDB.Attributes
                 $"FOREIGN KEY {(IndexName != null ? IndexName + " " : "")}({string.Join(", ", columns.Select(col => QuoteIf(col, quoteColumns)))}) " +
                 $"REFERENCES {table}({string.Join(", ", Columns.Select(col => QuoteIf(col, quoteColumns)))}) " +
                 $"ON DELETE {GetReferenceOptionName(OnDelete)} " +
-                $"ON UPDATE {GetReferenceOptionName(OnUpdate)}";
+                $"ON UPDATE {GetReferenceOptionName(OnUpdate)} " +
+                $"{GetDeferrableOptionName(Deferrable)}";
         }
 
         private static string QuoteIf(string text, bool doQuote)
@@ -84,6 +97,18 @@ namespace rDB.Attributes
                 ReferenceOption.SetDefault => "SET DEFAULT",
                 _ => throw new InvalidOperationException(
                     "The specified reference option is not supported.")
+            };
+        }
+
+        private string GetDeferrableOptionName(DeferrableOption option)
+        {
+            return option switch
+            {
+                DeferrableOption.NotDeferrable => "NOT DEFERRABLE",
+                DeferrableOption.InitiallyDeferred => "INITIALLY DEFERRED",
+                DeferrableOption.InitiallyImmediate => "INITIALLY IMMEDIATE",
+                _ => throw new InvalidOperationException(
+                    "The specified deferrable option is not supported.")
             };
         }
 

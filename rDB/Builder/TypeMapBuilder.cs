@@ -19,9 +19,7 @@ namespace rDB.Builder
             WithRange(entries);
         }
 
-        public TypeMapBuilder WithRange(
-            IEnumerable<KeyValuePair<Type, string>> entries
-        )
+        public TypeMapBuilder WithRange(IEnumerable<KeyValuePair<Type, string>> entries)
         {
             foreach (var entry in entries)
                 With(entry.Key, entry.Value);

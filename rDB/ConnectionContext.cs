@@ -1,16 +1,14 @@
 ﻿using System;
-using System.Data;
 using System.Data.Common;
 using System.Threading;
 using System.Threading.Tasks;
 using SqlKata;
 using SqlKata.Compilers;
 using SqlKata.Execution;
-using ColumnSet =
-    System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>;
+using ColumnSet = System.Collections.Immutable.IImmutableSet<rDB.DatabaseColumnContext>;
 using ColumnMap =
-    System.Collections.Immutable.ImmutableDictionary<System.Type, System.
-        Collections.Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
+    System.Collections.Immutable.ImmutableDictionary<System.Type, System.Collections.
+        Immutable.ImmutableHashSet<rDB.DatabaseColumnContext>>;
 
 namespace rDB
 {
@@ -35,11 +33,7 @@ namespace rDB
         public override TConnection Connection { get; }
         public override QueryFactory Factory { get; }
 
-        public EventHandler<ConnectionContextDisposeEventArgs> OnDispose
-        {
-            get;
-            set;
-        }
+        public EventHandler<ConnectionContextDisposeEventArgs> OnDispose { get; set; }
 
         public override async ValueTask DisposeAsync()
         {
@@ -57,8 +51,10 @@ namespace rDB
                 new ConnectionContextDisposeEventArgs(this, false));
         }
 
-        public async Task<DbTransaction> BeginTransaction() =>
-            await BeginTransaction(CancellationToken.None);
+        public async Task<DbTransaction> BeginTransaction()
+        {
+            return await BeginTransaction(CancellationToken.None);
+        }
 
         public async Task<DbTransaction> BeginTransaction(
             CancellationToken cancellationToken
@@ -86,6 +82,39 @@ namespace rDB
         public Query Query(string table)
         {
             return Factory.Query(table);
+        }
+
+        public async Task<T> WithTransaction<T>(
+            DbTransaction? transaction,
+            Func<DbTransaction, CancellationToken, Task<T>> action,
+            bool alwaysCommit = false,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var transactionCreated = transaction == null;
+
+            try
+            {
+                transaction ??= await Connection.BeginTransactionAsync(cancellationToken);
+
+                var response = await action(transaction, cancellationToken);
+
+                if (transactionCreated || alwaysCommit)
+                    await transaction.CommitAsync(cancellationToken);
+
+                return response;
+            }
+            catch (DbException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                if (transaction != null)
+                    await transaction.RollbackAsync(cancellationToken);
+
+                throw;
+            }
         }
 
         public readonly struct ConnectionContextDisposeEventArgs

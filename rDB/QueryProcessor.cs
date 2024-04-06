@@ -44,16 +44,12 @@ namespace rDB
             return new QueryProcessor(a, b);
         }
 
-        public static implicit operator Func<Query, Query>(
-            QueryProcessor processor
-        )
+        public static implicit operator Func<Query, Query>(QueryProcessor processor)
         {
             return query => processor.Process(query);
         }
 
-        public static implicit operator QueryProcessor(
-            Func<Query, Query> processor
-        )
+        public static implicit operator QueryProcessor(Func<Query, Query> processor)
         {
             return new QueryProcessor(processor);
         }
