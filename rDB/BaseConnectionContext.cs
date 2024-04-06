@@ -27,9 +27,13 @@ namespace rDB
         {
             return Table<TableConnectionContext<TTable, TConnection>, TTable>(
                 context =>
-                    new TableConnectionContext<TTable, TConnection>(context)
+                    new TableConnectionContext<TTable, TConnection>(
+                        context,
+                        disposeConnection: false
+                    )
             );
         }
+
 
         protected virtual TContext Table<TContext, TTable>(
             Func<BaseConnectionContext<TConnection>, TContext> constructor

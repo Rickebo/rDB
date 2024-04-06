@@ -110,15 +110,13 @@ namespace rDB
 
         public virtual async Task<TableConnectionContext<TTable, TConnection>>
             Table<TTable>()
-            where TTable : DatabaseEntry
-        {
-            return await Table<TableConnectionContext<TTable, TConnection>,
-                    TTable>(
-                    context =>
-                        new TableConnectionContext<TTable, TConnection>(
-                            context))
-                .ConfigureAwait(false);
-        }
+            where TTable : DatabaseEntry => 
+            await Table<TableConnectionContext<TTable, TConnection>, TTable>(
+                    context => new TableConnectionContext<TTable, TConnection>(
+                        context,
+                        disposeConnection: true
+                    )
+                ).ConfigureAwait(false);
 
 
         public async Task<TResult> Select<TTable, TResult>(

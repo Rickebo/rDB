@@ -17,15 +17,19 @@ using TypeMap = System.Collections.Immutable.ImmutableDictionary<System.Type, st
 namespace rDB
 {
     public class TableConnectionContext<TTable, TConnection>
-        : BaseConnectionContext<TConnection>, IDisposable, IAsyncDisposable
+        : BaseConnectionContext<TConnection>
         where TConnection : DbConnection
         where TTable : DatabaseEntry
     {
+        protected bool DisposeConnection { get; }
+        
         public TableConnectionContext(
-            BaseConnectionContext<TConnection> connectionContext
+            BaseConnectionContext<TConnection> connectionContext,
+            bool disposeConnection = false
         )
         {
             ConnectionContext = connectionContext;
+            DisposeConnection = disposeConnection;
 
             TableName = connectionContext.Schema.TableName<TTable>();
             Columns = connectionContext.Schema.ColumnMap[typeof(TTable)];
@@ -40,16 +44,6 @@ namespace rDB
         public override TConnection Connection => ConnectionContext.Connection;
 
         public override QueryFactory Factory => ConnectionContext.Factory;
-
-        public async ValueTask DisposeAsync()
-        {
-            await ConnectionContext.DisposeAsync();
-        }
-
-        public void Dispose()
-        {
-            ConnectionContext.Dispose();
-        }
 
         public Query Query()
         {
@@ -148,5 +142,15 @@ namespace rDB
         }
 
         #endregion
+
+        public override ValueTask DisposeAsync()
+        {
+            return new ValueTask();
+        }
+        
+        public override void Dispose()
+        {
+            
+        }
     }
 }
