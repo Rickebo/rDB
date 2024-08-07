@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Data;
 using System.Data.Common;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using SqlKata;
 using SqlKata.Execution;
@@ -22,7 +23,7 @@ namespace rDB
         where TTable : DatabaseEntry
     {
         protected bool DisposeConnection { get; }
-        
+
         public TableConnectionContext(
             BaseConnectionContext<TConnection> connectionContext,
             bool disposeConnection = false
@@ -114,10 +115,17 @@ namespace rDB
                 .ConfigureAwait(false);
         }
 
-        public async Task<int> Delete(Func<Query, Query> processor)
+        public virtual async Task Delete(
+            Func<Query, Query> processor,
+            IDbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        )
         {
-            return await processor(Query())
-                .DeleteAsync()
+            await processor(Query())
+                .DeleteAsync(
+                    transaction,
+                    cancellationToken: cancellationToken
+                )
                 .ConfigureAwait(false);
         }
 
@@ -147,10 +155,9 @@ namespace rDB
         {
             return new ValueTask();
         }
-        
+
         public override void Dispose()
         {
-            
         }
     }
 }
