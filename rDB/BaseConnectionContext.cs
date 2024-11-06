@@ -304,6 +304,20 @@ namespace rDB
 
         #region Select generic
 
+        public virtual async Task<int> Count<T>(
+            Func<Query, Query> processor,
+            IDbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        ) where T : DatabaseEntry
+        {
+            return await processor(Query<T>())
+                .CountAsync<int>(
+                    transaction: transaction,
+                    cancellationToken: cancellationToken
+                )
+                .ConfigureAwait(false);
+        }
+        
         public virtual async Task<TTable> SelectFirst<TTable>(
             Func<Query, Query> processor,
             IDbTransaction transaction = null,
