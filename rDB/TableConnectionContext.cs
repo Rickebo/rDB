@@ -107,21 +107,22 @@ namespace rDB
 
         public async Task<int> UpdateWhere(
             Func<Query, Query> queryProcessor,
-            TTable entry
+            TTable entry,
+            CancellationToken cancellationToken = default
         )
         {
             return await queryProcessor(Query())
-                .UpdateAsync(entry)
+                .UpdateAsync(entry, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
         }
 
-        public virtual async Task Delete(
+        public virtual async Task<int> Delete(
             Func<Query, Query> processor,
             IDbTransaction transaction = null,
             CancellationToken cancellationToken = default
         )
         {
-            await processor(Query())
+            return await processor(Query())
                 .DeleteAsync(
                     transaction,
                     cancellationToken: cancellationToken
