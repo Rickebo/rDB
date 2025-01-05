@@ -109,23 +109,16 @@ namespace rDB
         public async Task<int> UpdateWhere(
             Func<Query, Query> queryProcessor,
             TTable entry,
-<<<<<<< HEAD
-=======
             IDbTransaction transaction = null,
->>>>>>> 3f1c5cb (Added transaction & cancellation to UpdateWhere)
             CancellationToken cancellationToken = default
         )
         {
             return await queryProcessor(Query())
-<<<<<<< HEAD
-                .UpdateAsync(entry, cancellationToken: cancellationToken)
-=======
                 .UpdateAsync(
                     entry,
                     transaction: transaction,
                     cancellationToken: cancellationToken
                 )
->>>>>>> 3f1c5cb (Added transaction & cancellation to UpdateWhere)
                 .ConfigureAwait(false);
         }
 
