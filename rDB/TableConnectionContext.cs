@@ -108,7 +108,7 @@ namespace rDB
 
         public async Task<int> UpdateWhere(
             Func<Query, Query> queryProcessor,
-            TTable entry,
+            object entry,
             IDbTransaction transaction = null,
             CancellationToken cancellationToken = default
         )
@@ -135,6 +135,26 @@ namespace rDB
                 )
                 .ConfigureAwait(false);
         }
+
+        public virtual async Task<bool> UpdateOrInsert<T>(
+            Func<Query, Query> processor,
+            T entry,
+            DbTransaction transaction = null,
+            CancellationToken cancellationToken = default
+        ) where T : TTable => await WithTransaction(
+            transaction,
+            async (t, ct) =>
+            {
+                var updates = await UpdateWhere(processor, entry, t, ct);
+
+                if (updates >= 1)
+                    return false;
+
+                await Insert(entry, transaction: t, cancellationToken: ct);
+                return true;
+            },
+            cancellationToken: cancellationToken
+        );
 
         #region Select
 

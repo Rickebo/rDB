@@ -84,39 +84,6 @@ namespace rDB
             return Factory.Query(table);
         }
 
-        public async Task<T> WithTransaction<T>(
-            DbTransaction? transaction,
-            Func<DbTransaction, CancellationToken, Task<T>> action,
-            bool alwaysCommit = false,
-            CancellationToken cancellationToken = default
-        )
-        {
-            var transactionCreated = transaction == null;
-
-            try
-            {
-                transaction ??= await Connection.BeginTransactionAsync(cancellationToken);
-
-                var response = await action(transaction, cancellationToken);
-
-                if (transactionCreated || alwaysCommit)
-                    await transaction.CommitAsync(cancellationToken);
-
-                return response;
-            }
-            catch (DbException)
-            {
-                throw;
-            }
-            catch (Exception)
-            {
-                if (transaction != null)
-                    await transaction.RollbackAsync(cancellationToken);
-
-                throw;
-            }
-        }
-
         public readonly struct ConnectionContextDisposeEventArgs
         {
             public readonly ConnectionContext<TConnection> Context { get; }
